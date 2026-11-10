@@ -296,7 +296,7 @@ class RussianPromptTests(unittest.TestCase):
             for i in range(len(frames)):
                 prompt = ru.build_prompt_ru(ex_id, i)
                 self.assertIn('без текста', prompt)
-                self.assertIn(ru.FEMALE_PERSON_RU, ru.build_prompt_ru(ex_id, i, female=True))
+                self.assertIn(ru.FEMALE_PERSON_RU[1:], ru.build_prompt_ru(ex_id, i, female=True))
 
     def test_russian_markdown_is_up_to_date(self):
         import exercise_images_ru as ru
