@@ -1,27 +1,32 @@
-"""Промты для генерации иллюстраций техники упражнений.
+"""Промты для генерации реалистичных фото техники упражнений (фитнес-модели, 4K).
 
 Для каждого упражнения — минимум два кадра: исходное и конечное положение
-(для сложных базовых упражнений — третий кадр с ключевой деталью техники).
+(для сложных базовых упражнений — третий кадр с ключевой деталью или типичной ошибкой).
+Каждый кадр — в двух версиях: с мужчиной (👨) и с женщиной (👩). В «📖 Технике» мужчины видят
+мужские фото, девушки — женские.
 
-Промты на английском: генераторы изображений (Midjourney, DALL·E, Stable Diffusion,
-Kandinsky, Шедеврум) понимают его точнее. Русская подпись — то, что бот покажет под картинкой.
+Здесь — английские промты (Midjourney, DALL·E, Flux, Stable Diffusion понимают их точнее всего).
+Русские промты — в exercise_images_ru.py. Русская подпись кадра — то, что бот покажет под фото.
 
-Готовые картинки кладутся в fitness_bot/images/ с именами <id упражнения>_<номер кадра>.<png|jpg|webp>,
-например bench_1.png, bench_2.png — бот сам покажет их перед упражнением.
+Фото загружаются через бота («🛠 Админ» → «🖼 Фото упражнений») или кладутся в images/
+как <id>_<кадр>.jpg (мужская версия) и <id>_<кадр>_f.jpg (женская).
 
-Сгенерировать Markdown-файл со всеми промтами:  python fitness_bot/exercise_images.py
+Сгенерировать Markdown-файл со всеми промтами:  python exercise_images.py
 """
 
-# Единый стиль — чтобы все картинки выглядели как одна серия.
-STYLE = ('Clean instructional fitness illustration, flat vector style with soft shading, '
-         'full body visible, plain light grey background, accurate human anatomy and joint angles, '
-         'consistent character across the series, no text, no labels, no watermark, no logos, 4:3 aspect ratio')
+# Единый стиль — чтобы все фото выглядели как одна фотосессия.
+STYLE = ('Photorealistic professional fitness photography, 4K, ultra detailed, shot on a full-frame camera '
+         'with a 50mm lens, soft natural studio lighting, sharp focus, realistic skin texture and anatomy, '
+         'correct exercise technique and accurate joint angles, full body in frame, the same model throughout '
+         'the series, no text, no labels, no watermark, no logos, 4:3 aspect ratio')
 
-# Персонаж серии. Можно заменить на 'athletic woman in a black sports top, grey leggings and white sneakers'.
-PERSON = 'athletic man in a plain black t-shirt, grey shorts and white sneakers'
+PERSON = ('male fitness model in his late 20s with an athletic, naturally muscular build, short hair, '
+          'wearing a plain black t-shirt, grey shorts and white sneakers')
+FEMALE_PERSON = ('female fitness model in her late 20s with a toned athletic build, hair tied in a ponytail, '
+                 'wearing a black sports top, grey leggings and white sneakers')
 
-GYM = 'modern gym setting, minimal equipment in background'
-HOME = 'cozy home interior, living room with a yoga mat on the floor'
+GYM = 'in a bright modern gym, softly blurred background with bokeh'
+HOME = 'in a bright modern living room with a yoga mat on the floor, softly blurred background'
 
 # id: (место, [(подпись для бота, описание кадра), ...])
 EXERCISE_FRAMES = {
@@ -515,40 +520,47 @@ EXERCISE_FRAMES = {
 }
 
 
-def build_prompt(exercise_id, frame_index):
+def build_prompt(exercise_id, frame_index, female=False):
     place, frames = EXERCISE_FRAMES[exercise_id]
     _, description = frames[frame_index]
     style = STYLE
     if 'close-up' in description:
-        style = style.replace('full body visible, ', 'close-up detail shot, ')
-    return f'{style}. {place}. {PERSON}, {description}.'
+        style = style.replace('full body in frame, ', 'close-up detail shot, ')
+    if 'incorrect' in description:  # кадр с типичной ошибкой — «правильная техника» здесь не нужна
+        style = style.replace('correct exercise technique and accurate joint angles', 'clearly visible form mistake')
+    description = description.replace('subtle red tint', 'soft red glow highlighting the mistake')
+    person = FEMALE_PERSON if female else PERSON
+    return f'{style}. A {person}, {place}, {description}.'
 
 
-def prompts_for(exercise_id):
+def prompts_for(exercise_id, female=False):
     """[(подпись, промт), ...] для упражнения."""
     place, frames = EXERCISE_FRAMES[exercise_id]
-    return [(caption, build_prompt(exercise_id, i)) for i, (caption, _) in enumerate(frames)]
+    return [(caption, build_prompt(exercise_id, i, female)) for i, (caption, _) in enumerate(frames)]
+
+
+MIDJOURNEY_TIP = ('Совет для Midjourney: добавь в конец `--ar 4:3 --style raw --q 2`, для серии одного упражнения — '
+                  'один и тот же `--seed` (или `--cref` со ссылкой на первое фото модели). Для 4K — сделай Upscale.')
 
 
 def build_markdown(exercises):
-    lines = ['# Промты для иллюстраций упражнений', '',
-             'Для каждого упражнения — минимум два кадра: исходное и конечное положение '
-             '(для сложных базовых — третий кадр с ключевой деталью или типичной ошибкой).', '',
+    lines = ['# Промты для реалистичных фото техники (English)', '',
+             'Для каждого кадра — две версии: 👨 мужчина и 👩 женщина. В «📖 Технике» мужчины видят мужские фото, '
+             'девушки — женские. Русские промты — в `IMAGE_PROMPTS_RU.md`.', '',
              '**Как пользоваться**', '',
-             '1. Скопируй промт в генератор изображений (Midjourney, DALL·E, Stable Diffusion, Kandinsky, Шедеврум).',
-             '2. Сохрани картинку в `fitness_bot/images/` с именем `<id>_<номер кадра>.png`, например `bench_1.png`.',
-             '3. Бот сам покажет картинки с подписями перед упражнением.', '',
-             f'Единый стиль серии: `{STYLE}`', '',
-             f'Персонаж: `{PERSON}`. Для женской версии замени его на '
-             '`athletic woman in a black sports top, grey leggings and white sneakers` и сохрани файлы '
-             'с суффиксом `_f`, например `bench_1_f.png`, — их бот покажет девушкам.', '',
-             'Совет для Midjourney: добавь в конец `--ar 4:3 --style raw`, для серии — один и тот же `--seed`.', '']
+             '1. Скопируй промт в генератор (Midjourney, DALL·E, Flux, Stable Diffusion, Шедеврум, Kandinsky).',
+             '2. Загрузи фото через бота: «🛠 Админ» → «🖼 Фото упражнений» → упражнение → «📤 Кадр N 👨» или «👩». '
+             'Или отправь боту фото с подписью `bench 1` (мужская версия) / `bench 1 f` (женская).', '',
+             f'Стиль серии: `{STYLE}`', '', MIDJOURNEY_TIP, '']
     for ex in exercises:
         if ex.id not in EXERCISE_FRAMES:
             continue
         lines += [f'## {ex.name} (`{ex.id}`)', '']
-        for i, (caption, prompt) in enumerate(prompts_for(ex.id), 1):
-            lines += [f'**Кадр {i} — `{ex.id}_{i}.png`.** {caption}', '', '```', prompt, '```', '']
+        male, female = prompts_for(ex.id), prompts_for(ex.id, female=True)
+        for i, ((caption, m_prompt), (_, f_prompt)) in enumerate(zip(male, female), 1):
+            lines += [f'**Кадр {i}.** {caption}', '',
+                      f'👨 Мужчина — подпись `{ex.id} {i}`', '', '```', m_prompt, '```', '',
+                      f'👩 Женщина — подпись `{ex.id} {i} f`', '', '```', f_prompt, '```', '']
     return '\n'.join(lines)
 
 

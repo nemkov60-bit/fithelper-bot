@@ -275,15 +275,19 @@ class TechniqueTests(unittest.TestCase):
             else:
                 os.environ['ADMIN_ID'] = old
 
-    def test_db_photos_take_priority_and_female_fallback(self):
+    def test_photos_by_gender(self):
         fb.init_db()
-        fb.save_photo('plank', 1, '', 'FILE_COMMON_1')
-        fb.save_photo('plank', 2, 'f', 'FILE_FEMALE_2')
-        self.assertEqual([s for s, _ in fb.exercise_photos('plank', 'm')], ['FILE_COMMON_1'])
-        self.assertEqual([s for s, _ in fb.exercise_photos('plank', 'f')], ['FILE_COMMON_1', 'FILE_FEMALE_2'])
-        self.assertEqual(fb.photo_coverage('plank'), (1, 2))
-        fb.delete_photo('plank', 1, '')
-        self.assertEqual(fb.photo_coverage('plank'), (0, 2))
+        fb.save_photo('crunch', 1, '', 'MALE_1')
+        fb.save_photo('crunch', 1, 'f', 'FEMALE_1')
+        fb.save_photo('crunch', 2, 'f', 'FEMALE_2')
+        # Мужчинам — мужские фото, девушкам — женские; если версии своего пола нет — показываем другую.
+        self.assertEqual([s for s, _ in fb.exercise_photos('crunch', 'm')], ['MALE_1', 'FEMALE_2'])
+        self.assertEqual([s for s, _ in fb.exercise_photos('crunch', 'f')], ['FEMALE_1', 'FEMALE_2'])
+        self.assertEqual(fb.photo_coverage('crunch', ''), (1, 2))
+        self.assertEqual(fb.photo_coverage('crunch', 'f'), (2, 2))
+        self.assertEqual(fb.coverage_label('crunch'), '👨 1/2 · 👩 2/2')
+        fb.delete_photo('crunch', 1, '')
+        self.assertEqual(fb.photo_coverage('crunch', ''), (0, 2))
 
 
 class RussianPromptTests(unittest.TestCase):
@@ -297,6 +301,10 @@ class RussianPromptTests(unittest.TestCase):
                 prompt = ru.build_prompt_ru(ex_id, i)
                 self.assertIn('без текста', prompt)
                 self.assertIn(ru.FEMALE_PERSON_RU[1:], ru.build_prompt_ru(ex_id, i, female=True))
+                self.assertIn('4K', prompt)
+                self.assertNotIn('иллюстрац', prompt)
+                self.assertIn(ei.FEMALE_PERSON, ei.build_prompt(ex_id, i, female=True))
+                self.assertIn('Photorealistic', ei.build_prompt(ex_id, i))
 
     def test_russian_markdown_is_up_to_date(self):
         import exercise_images_ru as ru
@@ -306,7 +314,9 @@ class RussianPromptTests(unittest.TestCase):
 
     def test_admin_prompt_messages_fit(self):
         for ex in fb._EXERCISE_LIST:
-            for lang in ('f', 'en'):
-                self.assertLess(len(fb.admin_prompts_text(ex, lang)), 4096, ex.id)
+            for lang in ('ru', 'en'):
+                for gender in ('', 'f'):
+                    self.assertLess(len(fb.admin_prompts_text(ex, lang, gender)), 4096, ex.id)
             for i in range(1, fb.frame_count(ex.id) + 1):
-                self.assertLess(len(fb.ask_photo_text(ex, i, 'f')), 4000)
+                for gender in ('', 'f'):
+                    self.assertLess(len(fb.ask_photo_text(ex, i, gender)), 4000)

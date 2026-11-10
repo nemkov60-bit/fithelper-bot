@@ -1090,24 +1090,36 @@ def photo_source(ex_id, frame, gender, stored=None):
     return stored.get((frame, gender)) or _file_photo(ex_id, frame, gender)
 
 
+def photo_key(gender):
+    """Ключ версии фото: '' — мужская, 'f' — женская."""
+    return 'f' if gender == 'f' else ''
+
+
 def exercise_photos(ex_id, gender='m'):
-    """[(file_id или путь, подпись), ...]. Для девушек сначала женская версия кадра, иначе общая."""
+    """[(file_id или путь, подпись), ...]: мужчинам — мужские фото, девушкам — женские.
+    Если для кадра нет версии своего пола, показываем другую, чтобы не оставлять кадр пустым."""
     frames = EXERCISE_FRAMES.get(ex_id, (None, []))[1]
     stored = db_photos(ex_id)
     photos = []
     for i, (caption, _) in enumerate(frames, 1):
-        variants = ['f', ''] if gender == 'f' else ['']
+        variants = ['f', ''] if gender == 'f' else ['', 'f']
         source = next((src for g in variants if (src := photo_source(ex_id, i, g, stored))), None)
         if source:
             photos.append((source, caption))
     return photos
 
 
-def photo_coverage(ex_id):
-    """(кадров с общим фото, всего кадров)."""
+def photo_coverage(ex_id, gender=''):
+    """(кадров с фото этой версии, всего кадров). gender: '' — мужская, 'f' — женская."""
     stored = db_photos(ex_id)
     total = frame_count(ex_id)
-    return sum(1 for i in range(1, total + 1) if photo_source(ex_id, i, '', stored)), total
+    return sum(1 for i in range(1, total + 1) if photo_source(ex_id, i, gender, stored)), total
+
+
+def coverage_label(ex_id):
+    m, total = photo_coverage(ex_id, '')
+    f, _ = photo_coverage(ex_id, 'f')
+    return f'👨 {m}/{total} · 👩 {f}/{total}'
 
 
 async def send_photos(message, ex, gender):
@@ -1164,10 +1176,9 @@ async def send_technique(message, ex, user):
     text = technique_text(ex, user)
     rows = []
     if user and is_admin(user.get('user_id')):
-        done, total = photo_coverage(ex.id)
         if not has_photos:
             text += '\n\n🖼 Фото пока не загружены.'
-        rows.append([(f'🛠 Фото упражнения ({done}/{total})', f'ad:e:{ex.id}')])
+        rows.append([(f'🛠 Фото: {coverage_label(ex.id)}', f'ad:e:{ex.id}')])
     await message.reply_text(text, parse_mode=ParseMode.HTML, reply_markup=kb(rows) if rows else None)
 
 
@@ -1940,7 +1951,7 @@ def count_users():
 # Админ-панель: загрузка фото техники
 # ======================================================================
 
-FEMALE_PERSON = 'athletic woman in a black sports top, grey leggings and white sneakers'
+GENDER_ICON = {'': '👨', 'f': '👩'}
 
 
 def admin_stats_text():
@@ -1949,15 +1960,17 @@ def admin_stats_text():
         workouts = c.execute('SELECT COUNT(*) FROM workouts WHERE finished_at IS NOT NULL').fetchone()[0]
         week = c.execute('SELECT COUNT(DISTINCT user_id) FROM workouts WHERE finished_at>=?',
                          ((now() - timedelta(days=7)).isoformat(timespec='seconds'),)).fetchone()[0]
-    done = total = 0
-    for ex in _EXERCISE_LIST:
-        d, t = photo_coverage(ex.id)
-        done, total = done + d, total + t
-    return ('<b>🛠 Админ-панель</b>\n\n'
-            f'👥 Пользователей: <b>{users}</b>\n'
-            f'🏋️ Завершённых тренировок: <b>{workouts}</b>\n'
-            f'🔥 Активных за 7 дней: <b>{week}</b>\n\n'
-            f'🖼 Фото техники: <b>{done} из {total}</b> кадров\n{progress_bar(done / total if total else 0)}')
+    lines = ['<b>🛠 Админ-панель</b>', '',
+             f'👥 Пользователей: <b>{users}</b>',
+             f'🏋️ Завершённых тренировок: <b>{workouts}</b>',
+             f'🔥 Активных за 7 дней: <b>{week}</b>', '', '<b>📸 Фото техники</b>']
+    for g, title in (('', 'Мужские'), ('f', 'Женские')):
+        done = total = 0
+        for ex in _EXERCISE_LIST:
+            d, t = photo_coverage(ex.id, g)
+            done, total = done + d, total + t
+        lines.append(f'{GENDER_ICON[g]} {title}: <b>{done} из {total}</b>  {progress_bar(done / total if total else 0)}')
+    return '\n'.join(lines)
 
 
 async def admin_panel(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -1968,21 +1981,23 @@ async def admin_panel(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 def admin_menu_kb():
-    return kb([[('🖼 Фото упражнений', 'ad:groups')], [('💾 Резервная копия базы', 'ad:backup')]])
+    return kb([[('📸 Фото упражнений', 'ad:groups')], [('💾 Резервная копия базы', 'ad:backup')]])
 
 
 def coverage_mark(ex_id):
-    done, total = photo_coverage(ex_id)
-    return '✅' if done == total else ('◐' if done else '▫️')
+    total = frame_count(ex_id)
+    done = photo_coverage(ex_id, '')[0] + photo_coverage(ex_id, 'f')[0]
+    return '✅' if done == 2 * total else ('◐' if done else '▫️')
 
 
 def admin_groups_kb():
     rows = []
     for key, name in GROUPS.items():
         exs = [e for e in _EXERCISE_LIST if e.group == key]
-        done = sum(photo_coverage(e.id)[0] for e in exs)
         total = sum(frame_count(e.id) for e in exs)
-        rows.append([(f'{name} — {done}/{total}', f'ad:g:{key}')])
+        m = sum(photo_coverage(e.id, '')[0] for e in exs)
+        f = sum(photo_coverage(e.id, 'f')[0] for e in exs)
+        rows.append([(f'{name} — 👨 {m}/{total} · 👩 {f}/{total}', f'ad:g:{key}')])
     rows.append([('⬅️ Назад', 'ad:menu')])
     return kb(rows)
 
@@ -1995,27 +2010,26 @@ def admin_group_kb(group):
 
 def admin_exercise_text(ex):
     stored = db_photos(ex.id)
-    lines = [f'<b>🖼 {html.escape(ex.name)}</b> (<code>{ex.id}</code>)', '',
-             'Сгенерируй картинку по промту, затем нажми кнопку кадра и отправь фото сюда. '
-             'Общее фото видят все; женская версия (👩) — только девушки.', '']
+    lines = [f'<b>📸 {html.escape(ex.name)}</b> (<code>{ex.id}</code>)', '',
+             'Для каждого кадра нужны два реалистичных фото: 👨 с мужчиной и 👩 с женщиной. '
+             'Мужчины увидят в «Технике» мужские фото, девушки — женские.', '',
+             'Нажми «📤 Кадр N 👨/👩» — бот пришлёт промт этого кадра, потом отправь сгенерированное фото.', '']
     for i, (caption, _) in enumerate(EXERCISE_FRAMES[ex.id][1], 1):
-        common = '✅' if photo_source(ex.id, i, '', stored) else '▫️'
-        female = '✅' if photo_source(ex.id, i, 'f', stored) else '▫️'
-        lines += [f'<b>Кадр {i}.</b> {html.escape(caption)}', f'Общее: {common}  ·  👩 Женское: {female}',
-                  f'<code>{html.escape(build_prompt_ru(ex.id, i - 1))}</code>', '']
-    lines.append('Нажми на промт, чтобы скопировать. Женские и английские версии — кнопками ниже.')
+        status = '  ·  '.join(f'{GENDER_ICON[g]} {"✅" if photo_source(ex.id, i, g, stored) else "▫️"}' for g in ('', 'f'))
+        lines += [f'<b>Кадр {i}.</b> {html.escape(caption)}', status, '']
+    lines.append('Все промты сразу — кнопками ниже.')
     return '\n'.join(lines)
 
 
-def admin_prompts_text(ex, lang):
-    """Промты всех кадров: lang='f' — женская версия на русском, 'en' — на английском."""
-    title = '👩 Женская версия' if lang == 'f' else '🇬🇧 English'
-    lines = [f'<b>{title}: {html.escape(ex.name)}</b>', '']
+def admin_prompts_text(ex, lang, gender):
+    """Промты всех кадров упражнения: lang — 'ru' или 'en', gender — '' (мужчина) или 'f' (женщина)."""
+    female = gender == 'f'
+    title = f'{GENDER_ICON[gender]} {"Женщина" if female else "Мужчина"} · {"русский" if lang == "ru" else "English"}'
+    lines = [f'<b>{html.escape(ex.name)}</b> — {title}', '']
     for i, (caption, _) in enumerate(EXERCISE_FRAMES[ex.id][1], 1):
-        prompt = build_prompt_ru(ex.id, i - 1, female=True) if lang == 'f' else build_prompt(ex.id, i - 1)
+        prompt = build_prompt_ru(ex.id, i - 1, female) if lang == 'ru' else build_prompt(ex.id, i - 1, female)
         lines += [f'<b>Кадр {i}.</b> {html.escape(caption)}', f'<code>{html.escape(prompt)}</code>', '']
-    if lang == 'en':
-        lines.append(f'Female version: replace the character with <code>{FEMALE_PERSON}</code>')
+    lines.append('Нажми на промт, чтобы скопировать.')
     return '\n'.join(lines)
 
 
@@ -2023,13 +2037,13 @@ def admin_exercise_kb(ex):
     stored = db_photos(ex.id)
     rows = []
     for i in range(1, frame_count(ex.id) + 1):
-        row = [(f'📤 Кадр {i}', f'ad:up:{ex.id}:{i}:'), (f'📤 Кадр {i} 👩', f'ad:up:{ex.id}:{i}:f')]
-        rows.append(row)
-        dels = [(f'🗑 Кадр {i}' + (' 👩' if g else ''), f'ad:del:{ex.id}:{i}:{g}') for g in ('', 'f') if (i, g) in stored]
+        rows.append([(f'📤 Кадр {i} 👨', f'ad:up:{ex.id}:{i}:'), (f'📤 Кадр {i} 👩', f'ad:up:{ex.id}:{i}:f')])
+        dels = [(f'🗑 Кадр {i} {GENDER_ICON[g]}', f'ad:del:{ex.id}:{i}:{g}') for g in ('', 'f') if (i, g) in stored]
         if dels:
             rows.append(dels)
-    rows.append([('👩 Женские промты', f'ad:fp:{ex.id}'), ('🇬🇧 English', f'ad:en:{ex.id}')])
-    rows.append([('👁 Как видит пользователь', f't:{ex.id}')])
+    rows.append([('📝 Промты 👨', f'ad:pr:{ex.id}:ru:'), ('📝 Промты 👩', f'ad:pr:{ex.id}:ru:f')])
+    rows.append([('🇬🇧 Prompts 👨', f'ad:pr:{ex.id}:en:'), ('🇬🇧 Prompts 👩', f'ad:pr:{ex.id}:en:f')])
+    rows.append([('👁 Как видит мужчина', f'ad:pv:{ex.id}:'), ('👁 Как видит девушка', f'ad:pv:{ex.id}:f')])
     rows.append([('⬅️ К упражнениям', f'ad:g:{ex.group}')])
     return kb(rows)
 
@@ -2040,10 +2054,11 @@ async def show_admin_exercise(message, ex):
 
 def ask_photo_text(ex, frame, gender):
     caption = EXERCISE_FRAMES[ex.id][1][frame - 1][0]
-    who = ' (женская версия 👩)' if gender == 'f' else ''
-    prompt = build_prompt_ru(ex.id, frame - 1, female=gender == 'f')
-    return (f'📤 Отправь фото для «{html.escape(ex.name)}», кадр {frame}{who}:\n{html.escape(caption)}\n\n'
-            f'Промт:\n<code>{html.escape(prompt)}</code>\n\n'
+    female = gender == 'f'
+    who = 'женская версия 👩' if female else 'мужская версия 👨'
+    return (f'📤 Отправь фото для «{html.escape(ex.name)}», кадр {frame} ({who}):\n{html.escape(caption)}\n\n'
+            f'🇷🇺 Промт:\n<code>{html.escape(build_prompt_ru(ex.id, frame - 1, female))}</code>\n\n'
+            f'🇬🇧 Prompt:\n<code>{html.escape(build_prompt(ex.id, frame - 1, female))}</code>\n\n'
             'Можно обычным фото или файлом. /cancel — отменить.')
 
 
@@ -2064,9 +2079,13 @@ async def admin_callback(data, update, context):
                                  parse_mode=ParseMode.HTML, reply_markup=admin_group_kb(parts[2]))
     elif parts[1] == 'e' and len(parts) == 3 and parts[2] in EXERCISES:
         await show_admin_exercise(message, EXERCISES[parts[2]])
-    elif parts[1] in ('fp', 'en') and len(parts) == 3 and parts[2] in EXERCISES:
-        lang = 'f' if parts[1] == 'fp' else 'en'
-        await message.reply_text(admin_prompts_text(EXERCISES[parts[2]], lang), parse_mode=ParseMode.HTML)
+    elif parts[1] == 'pr' and len(parts) == 5 and parts[2] in EXERCISES and parts[3] in ('ru', 'en') \
+            and parts[4] in ('', 'f'):
+        await message.reply_text(admin_prompts_text(EXERCISES[parts[2]], parts[3], parts[4]), parse_mode=ParseMode.HTML)
+    elif parts[1] == 'pv' and len(parts) == 4 and parts[2] in EXERCISES and parts[3] in ('', 'f'):
+        # Предпросмотр «Техники» глазами мужчины или девушки.
+        preview_user = dict(get_user(uid) or {'user_id': uid}, gender='f' if parts[3] == 'f' else 'm')
+        await send_technique(message, EXERCISES[parts[2]], preview_user)
     elif parts[1] in ('up', 'del') and len(parts) == 5 and parts[2] in EXERCISES and parts[3].isdigit():
         ex, frame, gender = EXERCISES[parts[2]], int(parts[3]), parts[4]
         if not 1 <= frame <= frame_count(ex.id) or gender not in ('', 'f'):
@@ -2089,16 +2108,16 @@ async def photo_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     target = None
     awaiting = context.user_data.get('await') or ''
     # Быстрый способ: фото с подписью «bench 1» или «bench 1 f» (подпись важнее ожидаемого кадра).
-    m = re.fullmatch(r'\s*([a-z_]+)[\s_]+(\d)(?:[\s_]+(f|ж))?\s*', (message.caption or '').lower())
+    m = re.fullmatch(r'\s*([a-z_]+)[\s_]+(\d)(?:[\s_]+(f|ж|m|м))?\s*', (message.caption or '').lower())
     if m and m.group(1) in EXERCISES and 1 <= int(m.group(2)) <= frame_count(m.group(1)):
-        target = (m.group(1), int(m.group(2)), 'f' if m.group(3) else '')
+        target = (m.group(1), int(m.group(2)), 'f' if m.group(3) in ('f', 'ж') else '')
     elif awaiting.startswith('photo:'):
         _, ex_id, frame, gender = awaiting.split(':')
         target = (ex_id, int(frame), gender)
     if not target:
-        await message.reply_text('Чтобы добавить фото к упражнению: «🛠 Админ» → «🖼 Фото упражнений», '
-                                 'или отправь фото с подписью вида <code>bench 1</code> '
-                                 '(<code>bench 1 f</code> — женская версия).', parse_mode=ParseMode.HTML)
+        await message.reply_text('Чтобы добавить фото к упражнению: «🛠 Админ» → «📸 Фото упражнений», '
+                                 'или отправь фото с подписью вида <code>bench 1</code> (мужская версия 👨) '
+                                 'или <code>bench 1 f</code> (женская версия 👩).', parse_mode=ParseMode.HTML)
         return
     ex_id, frame, gender = target
     ex = EXERCISES[ex_id]
@@ -2114,8 +2133,7 @@ async def photo_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await message.reply_text('Это не картинка. Отправь фото (png, jpg, webp).')
         return
     save_photo(ex_id, frame, gender, file_id)
-    who = ' 👩' if gender == 'f' else ''
-    text = f'✅ Сохранено: «{ex.name}», кадр {frame}{who}.'
+    text = f'✅ Сохранено: «{ex.name}», кадр {frame} {GENDER_ICON[gender]}.'
     stored = db_photos(ex_id)
     nxt = next((i for i in range(1, frame_count(ex_id) + 1) if (i, gender) not in stored
                 and not photo_source(ex_id, i, gender, stored)), None)
@@ -2124,7 +2142,7 @@ async def photo_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await message.reply_text(html.escape(text) + '\n\n' + ask_photo_text(ex, nxt, gender), parse_mode=ParseMode.HTML)
     else:
         context.user_data.pop('await', None)
-        await message.reply_text(text + ' Все кадры этого упражнения загружены 🎉')
+        await message.reply_text(text + f' Все кадры {GENDER_ICON[gender]} этого упражнения загружены 🎉')
         await show_admin_exercise(message, ex)
 
 
