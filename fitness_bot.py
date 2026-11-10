@@ -34,9 +34,11 @@ from telegram.ext import (Application, CallbackQueryHandler, CommandHandler, Con
                           MessageHandler, PicklePersistence, filters)
 
 try:
-    from exercise_images import EXERCISE_FRAMES
+    from exercise_images import EXERCISE_FRAMES, build_prompt
+    from exercise_technique import TECHNIQUE
 except ImportError:  # pragma: no cover
-    from fitness_bot.exercise_images import EXERCISE_FRAMES
+    from fitness_bot.exercise_images import EXERCISE_FRAMES, build_prompt
+    from fitness_bot.exercise_technique import TECHNIQUE
 
 ROOT = Path(__file__).resolve().parent
 IMAGES_DIR = Path(os.environ.get('FITNESS_IMAGES', ROOT / 'images'))
@@ -49,11 +51,19 @@ DB_PATH = Path(os.environ.get('FITNESS_DB', DATA_DIR / 'fitness.db'))
 STATE_PATH = Path(os.environ.get('FITNESS_STATE', DATA_DIR / 'fitness_state.pickle'))
 
 
-def _admin_id():
-    try:
-        return int((os.environ.get('ADMIN_ID') or '0').strip())
-    except ValueError:
-        return 0
+def admin_ids():
+    """ID администраторов из ADMIN_ID (можно несколько через запятую)."""
+    ids = set()
+    for part in re.split(r'[,;\s]+', os.environ.get('ADMIN_ID') or ''):
+        if part.strip().isdigit():
+            ids.add(int(part))
+    return ids
+
+
+def is_admin(uid):
+    return uid in admin_ids()
+
+
 TZ_NAME = os.environ.get('FITNESS_TZ', 'Europe/Moscow')
 
 log = logging.getLogger('fitness_bot')
@@ -683,6 +693,9 @@ def init_db():
             user_id INTEGER, exercise_id TEXT, target REAL, PRIMARY KEY(user_id, exercise_id));
         CREATE TABLE IF NOT EXISTS cycle_log(
             user_id INTEGER, start_date TEXT, PRIMARY KEY(user_id, start_date));
+        CREATE TABLE IF NOT EXISTS exercise_photos(
+            exercise_id TEXT, frame INTEGER, gender TEXT, file_id TEXT, added_at TEXT,
+            PRIMARY KEY(exercise_id, frame, gender));
         CREATE INDEX IF NOT EXISTS sets_user_ex ON sets(user_id, exercise_id);
         CREATE INDEX IF NOT EXISTS workouts_user ON workouts(user_id, finished_at);
         ''')
@@ -858,12 +871,15 @@ BTN_WEIGHT = '⚖️ Вес тела'
 BTN_GOALS = '🎯 Цели'
 BTN_CYCLE = '🌸 Цикл'
 BTN_SETTINGS = '⚙️ Настройки'
+BTN_ADMIN = '🛠 Админ'
 
 
 def menu_for(user):
     last = [BTN_CYCLE, BTN_SETTINGS] if user and user.get('gender') == 'f' else [BTN_SETTINGS]
-    return ReplyKeyboardMarkup([[BTN_TODAY], [BTN_PROGRAM, BTN_PROGRESS], [BTN_WEIGHT, BTN_GOALS], last],
-                               resize_keyboard=True)
+    rows = [[BTN_TODAY], [BTN_PROGRAM, BTN_PROGRESS], [BTN_WEIGHT, BTN_GOALS], last]
+    if user and is_admin(user.get('user_id')):
+        rows.append([BTN_ADMIN])
+    return ReplyKeyboardMarkup(rows, resize_keyboard=True)
 
 
 def kb(rows):
@@ -979,8 +995,7 @@ def exercise_card(user, wk):
     rows = []
     if done:
         rows.append([('🔁 Как прошлый подход', 'w:repeat')])
-    if exercise_photos(p.exercise.id, user.get('gender') or 'm'):
-        rows.append([('🖼 Техника в картинках', 'w:photos')])
+    rows.append([('📖 Техника', f't:{p.exercise.id}')])
     rows.append([('⏭ Следующее упражнение', 'w:next'), ('🏁 Завершить', 'w:finish')])
     return '\n'.join(lines), kb(rows)
 
@@ -1040,18 +1055,57 @@ IMAGE_EXTS = ('.png', '.jpg', '.jpeg', '.webp')
 _photo_ids = {}  # путь к файлу → file_id в Telegram, чтобы не загружать повторно
 
 
+def frame_count(ex_id):
+    return len(EXERCISE_FRAMES.get(ex_id, (None, []))[1])
+
+
+def db_photos(ex_id):
+    """{(кадр, пол): file_id} — фото, загруженные администратором через бота."""
+    with connect() as c:
+        return {(r['frame'], r['gender']): r['file_id'] for r in c.execute(
+            'SELECT frame, gender, file_id FROM exercise_photos WHERE exercise_id=?', (ex_id,))}
+
+
+def save_photo(ex_id, frame, gender, file_id):
+    with connect() as c:
+        c.execute('INSERT OR REPLACE INTO exercise_photos(exercise_id,frame,gender,file_id,added_at) VALUES(?,?,?,?,?)',
+                  (ex_id, frame, gender, file_id, now().isoformat(timespec='seconds')))
+
+
+def delete_photo(ex_id, frame, gender):
+    with connect() as c:
+        c.execute('DELETE FROM exercise_photos WHERE exercise_id=? AND frame=? AND gender=?', (ex_id, frame, gender))
+
+
+def _file_photo(ex_id, frame, gender):
+    name = f'{ex_id}_{frame}' + ('_f' if gender == 'f' else '')
+    return next((IMAGES_DIR / (name + ext) for ext in IMAGE_EXTS if (IMAGES_DIR / (name + ext)).is_file()), None)
+
+
+def photo_source(ex_id, frame, gender, stored=None):
+    """file_id из базы или путь к файлу в images/ для одного кадра (без запасного варианта по полу)."""
+    stored = db_photos(ex_id) if stored is None else stored
+    return stored.get((frame, gender)) or _file_photo(ex_id, frame, gender)
+
+
 def exercise_photos(ex_id, gender='m'):
-    """[(путь, подпись), ...] — готовые картинки из папки images/ (для девушек сначала *_f)."""
+    """[(file_id или путь, подпись), ...]. Для девушек сначала женская версия кадра, иначе общая."""
     frames = EXERCISE_FRAMES.get(ex_id, (None, []))[1]
+    stored = db_photos(ex_id)
     photos = []
     for i, (caption, _) in enumerate(frames, 1):
-        names = [f'{ex_id}_{i}_f', f'{ex_id}_{i}'] if gender == 'f' else [f'{ex_id}_{i}']
-        for name in names:
-            found = next((IMAGES_DIR / (name + ext) for ext in IMAGE_EXTS if (IMAGES_DIR / (name + ext)).is_file()), None)
-            if found:
-                photos.append((found, caption))
-                break
+        variants = ['f', ''] if gender == 'f' else ['']
+        source = next((src for g in variants if (src := photo_source(ex_id, i, g, stored))), None)
+        if source:
+            photos.append((source, caption))
     return photos
+
+
+def photo_coverage(ex_id):
+    """(кадров с общим фото, всего кадров)."""
+    stored = db_photos(ex_id)
+    total = frame_count(ex_id)
+    return sum(1 for i in range(1, total + 1) if photo_source(ex_id, i, '', stored)), total
 
 
 async def send_photos(message, ex, gender):
@@ -1061,18 +1115,19 @@ async def send_photos(message, ex, gender):
     files = []
     try:
         media = []
-        for i, (path, caption) in enumerate(photos):
+        for i, (source, caption) in enumerate(photos):
             text = f'{ex.name}\n{i + 1}. {caption}' if i == 0 else f'{i + 1}. {caption}'
-            if str(path) in _photo_ids:
-                source = _photo_ids[str(path)]
-            else:
-                source = open(path, 'rb')
-                files.append(source)
+            if isinstance(source, Path):
+                if str(source) in _photo_ids:
+                    source = _photo_ids[str(source)]
+                else:
+                    source = open(source, 'rb')
+                    files.append(source)
             media.append(InputMediaPhoto(source, caption=text))
         sent = await message.reply_media_group(media)
-        for (path, _), msg in zip(photos, sent):
-            if msg.photo:
-                _photo_ids[str(path)] = msg.photo[-1].file_id
+        for (source, _), msg in zip(photos, sent):
+            if isinstance(source, Path) and msg.photo:
+                _photo_ids[str(source)] = msg.photo[-1].file_id
         return True
     except Exception as exc:
         log.warning('Не удалось отправить картинки %s: %s', ex.id, exc)
@@ -1080,6 +1135,38 @@ async def send_photos(message, ex, gender):
     finally:
         for f in files:
             f.close()
+
+
+def technique_text(ex, user=None):
+    secondary, setup, steps, breath, mistakes = TECHNIQUE[ex.id]
+    muscles = GROUPS[ex.group] + (f', {secondary}' if secondary else '')
+    places = ' / '.join({GYM: 'зал', HOME: 'дом'}[p] for p in ex.places)
+    lines = [f'<b>📖 {html.escape(ex.name)}</b>',
+             f'💪 Работают: {muscles}', f'📍 Где: {places}', '',
+             '<b>Подготовка</b>', setup, '',
+             '<b>Выполнение</b>']
+    lines += [f'{i}. {step}' for i, step in enumerate(steps, 1)]
+    lines += ['', f'<b>🫁 Дыхание:</b> {breath}', '', '<b>⚠️ Частые ошибки</b>']
+    lines += [f'• {m}' for m in mistakes]
+    if ex.tip:
+        lines += ['', f'💡 Главное: {ex.tip}']
+    if user and user.get('level') == 'novice' and start_weight(ex, user):
+        lines.append(f'🏁 Стартовый вес: {start_weight(ex, user)}')
+    return '\n'.join(lines)
+
+
+async def send_technique(message, ex, user):
+    """Кнопка «Техника»: фото кадров + понятное описание."""
+    gender = (user or {}).get('gender') or 'm'
+    has_photos = await send_photos(message, ex, gender)
+    text = technique_text(ex, user)
+    rows = []
+    if user and is_admin(user.get('user_id')):
+        done, total = photo_coverage(ex.id)
+        if not has_photos:
+            text += '\n\n🖼 Фото пока не загружены.'
+        rows.append([(f'🛠 Фото упражнения ({done}/{total})', f'ad:e:{ex.id}')])
+    await message.reply_text(text, parse_mode=ParseMode.HTML, reply_markup=kb(rows) if rows else None)
 
 
 async def send_card(message, user, wk, prefix=''):
@@ -1291,14 +1378,25 @@ async def show_today(update: Update, context: ContextTypes.DEFAULT_TYPE, day_ind
         rows = [[('▶️ Начать облегчённую', f'w:start:{day_index}')],
                 [('💪 Чувствую себя отлично — обычная', f'w:start:{day_index}:std')]]
     rows.append([('🔀 Выбрать другой день', 'w:pick')])
+    rows += technique_rows(plan_day(user, day_index))
     await update.effective_message.reply_text(day_overview_text(user, day_index, mods), parse_mode=ParseMode.HTML,
                                               reply_markup=kb(rows))
+
+
+def technique_rows(day):
+    """Кнопки «📖 Техника» для каждого упражнения дня (по две в ряд)."""
+    buttons = []
+    for i, p in enumerate(day.exercises, 1):
+        name = p.exercise.name if len(p.exercise.name) <= 22 else p.exercise.name[:21] + '…'
+        buttons.append((f'📖 {i}. {name}', f't:{p.exercise.id}'))
+    return [buttons[i:i + 2] for i in range(0, len(buttons), 2)]
 
 
 async def show_program(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = await need_profile(update, context)
     if user:
-        await update.effective_message.reply_text(program_text(user), parse_mode=ParseMode.HTML)
+        await update.effective_message.reply_text(program_text(user), parse_mode=ParseMode.HTML,
+                                                  reply_markup=kb([[('📖 Техника упражнений', 'tp')]]))
 
 
 async def show_cycle(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -1583,12 +1681,33 @@ async def callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         context.user_data.pop('await', None)
         await message.reply_text(f'Поехали! 🔥 {day.note}')
         await send_card(message, user, context.user_data['wk'])
-    elif data == 'w:photos':
+    elif data == 'w:photos':  # кнопка из старых сообщений
         wk = context.user_data.get('wk')
         user = get_user(uid)
         if wk and profile_complete(user):
             ex = plan_day(user, wk['day'], wk.get('mods')).exercises[wk['ex_pos']].exercise
-            await send_photos(message, ex, user.get('gender') or 'm')
+            await send_technique(message, ex, user)
+
+    # --- Техника ---
+    elif data.startswith('t:'):
+        ex = EXERCISES.get(data[2:])
+        if ex:
+            await send_technique(message, ex, get_user(uid))
+    elif data == 'tp':
+        user = get_user(uid)
+        if profile_complete(user):
+            await message.reply_text('Техника упражнений — выбери день:', reply_markup=kb(
+                [[(f'День {i + 1}: {d.title}', f'td:{i}')] for i, d in enumerate(user_program(user))]))
+    elif data.startswith('td:') and data[3:].isdigit():
+        user = get_user(uid)
+        if profile_complete(user):
+            day = plan_day(user, int(data[3:]))
+            await message.reply_text(f'<b>{html.escape(day.title)}</b> — выбери упражнение:', parse_mode=ParseMode.HTML,
+                                     reply_markup=kb(technique_rows(day)))
+
+    # --- Админ ---
+    elif data.startswith('ad:'):
+        await admin_callback(data, update, context)
     elif data == 'w:next':
         if context.user_data.get('wk'):
             cancel_rest(uid)
@@ -1693,7 +1812,8 @@ async def text_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text = (update.effective_message.text or '').strip()
     uid = update.effective_user.id
     routes = {BTN_TODAY: show_today, BTN_PROGRAM: show_program, BTN_PROGRESS: show_progress,
-              BTN_WEIGHT: show_weight, BTN_GOALS: show_goals, BTN_SETTINGS: settings, BTN_CYCLE: show_cycle}
+              BTN_WEIGHT: show_weight, BTN_GOALS: show_goals, BTN_SETTINGS: settings, BTN_CYCLE: show_cycle,
+              BTN_ADMIN: admin_panel}
     if text in routes:
         if text != BTN_WEIGHT:
             context.user_data.pop('await', None)
@@ -1701,6 +1821,9 @@ async def text_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
     awaiting = context.user_data.get('await')
     message = update.effective_message
+    if awaiting and awaiting.startswith('photo:'):
+        await message.reply_text('Жду фото для упражнения — отправь картинку или /cancel.')
+        return
     if awaiting in ('onb_period', 'period_date'):
         d = parse_date(text)
         if not d:
@@ -1778,24 +1901,29 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         f'• «{BTN_WEIGHT}» — дневник веса тела.\n'
         f'• «{BTN_GOALS}» — цели по весу тела и рабочим весам.\n'
         f'• «{BTN_CYCLE}» — учёт цикла (женский профиль): нагрузка подстраивается под фазу.\n'
-        f'• «{BTN_SETTINGS}» — заполнить анкету заново, таймер отдыха.\n\n'
+        f'• «{BTN_SETTINGS}» — заполнить анкету заново, таймер отдыха.\n'
+        '• «📖 Техника» — у каждого упражнения: как выполнять, дыхание, частые ошибки и фото.\n\n'
         'Команды: /today /program /progress /weight /goals /cycle /settings /finish /cancel',
         parse_mode=ParseMode.HTML, reply_markup=menu_for(get_user(update.effective_user.id)))
 
 
 async def backup_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Резервная копия базы — только для администратора (ADMIN_ID)."""
-    if not _admin_id() or update.effective_user.id != _admin_id():
+    if not is_admin(update.effective_user.id):
         return
+    await send_backup(update.effective_message)
+
+
+async def send_backup(message):
     if not DB_PATH.is_file():
-        await update.effective_message.reply_text('База ещё не создана.')
+        await message.reply_text('База ещё не создана.')
         return
     backup = DATA_DIR / f'backup_{now():%Y%m%d_%H%M}.db'
     with connect() as src, sqlite3.connect(backup) as dst:
         src.backup(dst)
     try:
         with open(backup, 'rb') as f:
-            await update.effective_message.reply_document(f, filename=backup.name,
+            await message.reply_document(f, filename=backup.name,
                                                           caption=f'Резервная копия базы. Пользователей: {count_users()}')
     finally:
         backup.unlink(missing_ok=True)
@@ -1804,6 +1932,184 @@ async def backup_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 def count_users():
     with connect() as c:
         return c.execute('SELECT COUNT(*) FROM users').fetchone()[0]
+
+
+# ======================================================================
+# Админ-панель: загрузка фото техники
+# ======================================================================
+
+FEMALE_PERSON = 'athletic woman in a black sports top, grey leggings and white sneakers'
+
+
+def admin_stats_text():
+    with connect() as c:
+        users = c.execute('SELECT COUNT(*) FROM users').fetchone()[0]
+        workouts = c.execute('SELECT COUNT(*) FROM workouts WHERE finished_at IS NOT NULL').fetchone()[0]
+        week = c.execute('SELECT COUNT(DISTINCT user_id) FROM workouts WHERE finished_at>=?',
+                         ((now() - timedelta(days=7)).isoformat(timespec='seconds'),)).fetchone()[0]
+    done = total = 0
+    for ex in _EXERCISE_LIST:
+        d, t = photo_coverage(ex.id)
+        done, total = done + d, total + t
+    return ('<b>🛠 Админ-панель</b>\n\n'
+            f'👥 Пользователей: <b>{users}</b>\n'
+            f'🏋️ Завершённых тренировок: <b>{workouts}</b>\n'
+            f'🔥 Активных за 7 дней: <b>{week}</b>\n\n'
+            f'🖼 Фото техники: <b>{done} из {total}</b> кадров\n{progress_bar(done / total if total else 0)}')
+
+
+async def admin_panel(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not is_admin(update.effective_user.id):
+        return
+    context.user_data.pop('await', None)
+    await update.effective_message.reply_text(admin_stats_text(), parse_mode=ParseMode.HTML, reply_markup=admin_menu_kb())
+
+
+def admin_menu_kb():
+    return kb([[('🖼 Фото упражнений', 'ad:groups')], [('💾 Резервная копия базы', 'ad:backup')]])
+
+
+def coverage_mark(ex_id):
+    done, total = photo_coverage(ex_id)
+    return '✅' if done == total else ('◐' if done else '▫️')
+
+
+def admin_groups_kb():
+    rows = []
+    for key, name in GROUPS.items():
+        exs = [e for e in _EXERCISE_LIST if e.group == key]
+        done = sum(photo_coverage(e.id)[0] for e in exs)
+        total = sum(frame_count(e.id) for e in exs)
+        rows.append([(f'{name} — {done}/{total}', f'ad:g:{key}')])
+    rows.append([('⬅️ Назад', 'ad:menu')])
+    return kb(rows)
+
+
+def admin_group_kb(group):
+    rows = [[(f'{coverage_mark(e.id)} {e.name}', f'ad:e:{e.id}')] for e in _EXERCISE_LIST if e.group == group]
+    rows.append([('⬅️ К группам мышц', 'ad:groups')])
+    return kb(rows)
+
+
+def admin_exercise_text(ex):
+    stored = db_photos(ex.id)
+    lines = [f'<b>🖼 {html.escape(ex.name)}</b> (<code>{ex.id}</code>)', '',
+             'Сгенерируй картинку по промту, затем нажми кнопку кадра и отправь фото сюда. '
+             'Общее фото видят все; женская версия (👩) — только девушки.', '']
+    for i, (caption, _) in enumerate(EXERCISE_FRAMES[ex.id][1], 1):
+        common = '✅' if photo_source(ex.id, i, '', stored) else '▫️'
+        female = '✅' if photo_source(ex.id, i, 'f', stored) else '▫️'
+        lines += [f'<b>Кадр {i}.</b> {html.escape(caption)}', f'Общее: {common}  ·  👩 Женское: {female}',
+                  f'<code>{html.escape(build_prompt(ex.id, i - 1))}</code>', '']
+    lines.append(f'Для женской версии замени в промте персонажа на: <code>{FEMALE_PERSON}</code>')
+    return '\n'.join(lines)
+
+
+def admin_exercise_kb(ex):
+    stored = db_photos(ex.id)
+    rows = []
+    for i in range(1, frame_count(ex.id) + 1):
+        row = [(f'📤 Кадр {i}', f'ad:up:{ex.id}:{i}:'), (f'📤 Кадр {i} 👩', f'ad:up:{ex.id}:{i}:f')]
+        rows.append(row)
+        dels = [(f'🗑 Кадр {i}' + (' 👩' if g else ''), f'ad:del:{ex.id}:{i}:{g}') for g in ('', 'f') if (i, g) in stored]
+        if dels:
+            rows.append(dels)
+    rows.append([('👁 Как видит пользователь', f't:{ex.id}')])
+    rows.append([('⬅️ К упражнениям', f'ad:g:{ex.group}')])
+    return kb(rows)
+
+
+async def show_admin_exercise(message, ex):
+    await message.reply_text(admin_exercise_text(ex), parse_mode=ParseMode.HTML, reply_markup=admin_exercise_kb(ex))
+
+
+def ask_photo_text(ex, frame, gender):
+    caption = EXERCISE_FRAMES[ex.id][1][frame - 1][0]
+    who = ' (женская версия 👩)' if gender == 'f' else ''
+    return (f'📤 Отправь фото для «{ex.name}», кадр {frame}{who}:\n{caption}\n\n'
+            'Можно обычным фото или файлом. /cancel — отменить.')
+
+
+async def admin_callback(data, update, context):
+    uid = update.effective_user.id
+    message = update.callback_query.message
+    if not is_admin(uid):
+        return
+    parts = data.split(':')
+    if data == 'ad:menu':
+        await message.reply_text(admin_stats_text(), parse_mode=ParseMode.HTML, reply_markup=admin_menu_kb())
+    elif data == 'ad:backup':
+        await send_backup(message)
+    elif data == 'ad:groups':
+        await message.reply_text('Выбери группу мышц (загружено / всего кадров):', reply_markup=admin_groups_kb())
+    elif parts[1] == 'g' and len(parts) == 3 and parts[2] in GROUPS:
+        await message.reply_text(f'<b>{GROUPS[parts[2]]}</b>: ✅ все фото · ◐ часть · ▫️ нет фото',
+                                 parse_mode=ParseMode.HTML, reply_markup=admin_group_kb(parts[2]))
+    elif parts[1] == 'e' and len(parts) == 3 and parts[2] in EXERCISES:
+        await show_admin_exercise(message, EXERCISES[parts[2]])
+    elif parts[1] in ('up', 'del') and len(parts) == 5 and parts[2] in EXERCISES and parts[3].isdigit():
+        ex, frame, gender = EXERCISES[parts[2]], int(parts[3]), parts[4]
+        if not 1 <= frame <= frame_count(ex.id) or gender not in ('', 'f'):
+            return
+        if parts[1] == 'up':
+            context.user_data['await'] = f'photo:{ex.id}:{frame}:{gender}'
+            await message.reply_text(ask_photo_text(ex, frame, gender))
+        else:
+            delete_photo(ex.id, frame, gender)
+            await message.reply_text(f'🗑 Фото кадра {frame} удалено.')
+            await show_admin_exercise(message, ex)
+
+
+async def photo_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Фото от администратора → картинка техники упражнения."""
+    uid = update.effective_user.id
+    message = update.effective_message
+    if not is_admin(uid):
+        return
+    target = None
+    awaiting = context.user_data.get('await') or ''
+    # Быстрый способ: фото с подписью «bench 1» или «bench 1 f» (подпись важнее ожидаемого кадра).
+    m = re.fullmatch(r'\s*([a-z_]+)[\s_]+(\d)(?:[\s_]+(f|ж))?\s*', (message.caption or '').lower())
+    if m and m.group(1) in EXERCISES and 1 <= int(m.group(2)) <= frame_count(m.group(1)):
+        target = (m.group(1), int(m.group(2)), 'f' if m.group(3) else '')
+    elif awaiting.startswith('photo:'):
+        _, ex_id, frame, gender = awaiting.split(':')
+        target = (ex_id, int(frame), gender)
+    if not target:
+        await message.reply_text('Чтобы добавить фото к упражнению: «🛠 Админ» → «🖼 Фото упражнений», '
+                                 'или отправь фото с подписью вида <code>bench 1</code> '
+                                 '(<code>bench 1 f</code> — женская версия).', parse_mode=ParseMode.HTML)
+        return
+    ex_id, frame, gender = target
+    ex = EXERCISES[ex_id]
+    if message.photo:
+        file_id = message.photo[-1].file_id
+    elif message.document and (message.document.mime_type or '').startswith('image/'):
+        # Файл без сжатия → перезагружаем как фото, чтобы его можно было показывать в альбоме.
+        tg_file = await message.document.get_file()
+        data = await tg_file.download_as_bytearray()
+        sent = await message.reply_photo(bytes(data), caption='Файл преобразован в фото')
+        file_id = sent.photo[-1].file_id
+    else:
+        await message.reply_text('Это не картинка. Отправь фото (png, jpg, webp).')
+        return
+    save_photo(ex_id, frame, gender, file_id)
+    who = ' 👩' if gender == 'f' else ''
+    text = f'✅ Сохранено: «{ex.name}», кадр {frame}{who}.'
+    stored = db_photos(ex_id)
+    nxt = next((i for i in range(1, frame_count(ex_id) + 1) if (i, gender) not in stored
+                and not photo_source(ex_id, i, gender, stored)), None)
+    if nxt:
+        context.user_data['await'] = f'photo:{ex_id}:{nxt}:{gender}'
+        await message.reply_text(text + '\n\n' + ask_photo_text(ex, nxt, gender))
+    else:
+        context.user_data.pop('await', None)
+        await message.reply_text(text + ' Все кадры этого упражнения загружены 🎉')
+        await show_admin_exercise(message, ex)
+
+
+async def admin_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await admin_panel(update, context)
 
 
 async def finish_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -1835,9 +2141,11 @@ def build_app(token):
     app.add_handler(CommandHandler('finish', finish_command))
     app.add_handler(CommandHandler('cancel', cancel))
     app.add_handler(CommandHandler('backup', backup_command))
+    app.add_handler(CommandHandler('admin', admin_command))
     app.add_handler(CallbackQueryHandler(cs_callback, pattern=r'^cs:'))
     app.add_handler(CallbackQueryHandler(callback))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, text_handler))
+    app.add_handler(MessageHandler(filters.PHOTO | filters.Document.IMAGE, photo_handler))
     app.add_error_handler(on_error)
     return app
 

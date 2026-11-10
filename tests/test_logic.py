@@ -241,3 +241,46 @@ class ImagePromptTests(unittest.TestCase):
             self.assertEqual(fb.exercise_photos('squat'), [])
         finally:
             fb.IMAGES_DIR = old
+
+
+class TechniqueTests(unittest.TestCase):
+    def test_every_exercise_has_technique(self):
+        from exercise_technique import TECHNIQUE
+        self.assertEqual(set(TECHNIQUE), set(fb.EXERCISES))
+        for ex in fb._EXERCISE_LIST:
+            secondary, setup, steps, breath, mistakes = TECHNIQUE[ex.id]
+            self.assertTrue(setup and breath and len(steps) >= 2 and mistakes, ex.id)
+            text = fb.technique_text(ex, {'level': 'novice', 'gender': 'f', 'age': '30'})
+            self.assertLess(len(text), 4096, ex.id)
+            self.assertIn('Выполнение', text)
+
+    def test_admin_screens_fit_telegram_limits(self):
+        for ex in fb._EXERCISE_LIST:
+            self.assertLess(len(fb.admin_exercise_text(ex)), 4096, ex.id)
+            for row in fb.admin_exercise_kb(ex).inline_keyboard:
+                for b in row:
+                    self.assertLessEqual(len(b.callback_data.encode()), 64)
+
+    def test_admin_ids(self):
+        old = os.environ.get('ADMIN_ID')
+        try:
+            os.environ['ADMIN_ID'] = '123, 456'
+            self.assertTrue(fb.is_admin(456))
+            self.assertFalse(fb.is_admin(789))
+            os.environ['ADMIN_ID'] = ''
+            self.assertFalse(fb.is_admin(123))
+        finally:
+            if old is None:
+                os.environ.pop('ADMIN_ID', None)
+            else:
+                os.environ['ADMIN_ID'] = old
+
+    def test_db_photos_take_priority_and_female_fallback(self):
+        fb.init_db()
+        fb.save_photo('plank', 1, '', 'FILE_COMMON_1')
+        fb.save_photo('plank', 2, 'f', 'FILE_FEMALE_2')
+        self.assertEqual([s for s, _ in fb.exercise_photos('plank', 'm')], ['FILE_COMMON_1'])
+        self.assertEqual([s for s, _ in fb.exercise_photos('plank', 'f')], ['FILE_COMMON_1', 'FILE_FEMALE_2'])
+        self.assertEqual(fb.photo_coverage('plank'), (1, 2))
+        fb.delete_photo('plank', 1, '')
+        self.assertEqual(fb.photo_coverage('plank'), (0, 2))
