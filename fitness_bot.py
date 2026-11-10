@@ -432,8 +432,9 @@ def build_program(goal, level, days, place, gender='m', age='30'):
     return program
 
 
-def user_program(user):
-    return build_program(user['goal'], user['level'], user['days'], user['place'],
+def user_program(user, place=None):
+    """Программа пользователя. place — место на сегодня (зал/дом), по умолчанию — из анкеты."""
+    return build_program(user['goal'], user['level'], user['days'], place or user['place'],
                          user.get('gender') or 'm', user.get('age') or '30')
 
 
@@ -530,9 +531,17 @@ def apply_mods(day, mods):
     return WorkoutDay(day.title, tuple(planned), day.note)
 
 
-def plan_day(user, day_index, mods=None):
-    program = user_program(user)
+def plan_day(user, day_index, mods=None, place=None):
+    program = user_program(user, place)
     return apply_mods(program[day_index % len(program)], mods)
+
+
+def place_today(user, user_data):
+    """Где тренируемся сегодня: выбор «только на сегодня» или место из анкеты."""
+    choice = (user_data or {}).get('place_today') or {}
+    if choice.get('date') == now().date().isoformat() and choice.get('place') in PLACES:
+        return choice['place']
+    return user['place']
 
 
 def parse_date(text, today=None):
@@ -735,7 +744,7 @@ def save_user(uid, name, profile):
 
 def set_user_field(uid, field, value):
     assert field in ('day_index', 'target_weight', 'rest_timer', 'cycle_tracking', 'period_start',
-                     'cycle_len', 'period_len')
+                     'cycle_len', 'period_len', 'place')
     with connect() as c:
         c.execute(f'UPDATE users SET {field}=? WHERE user_id=?', (value, uid))
 
@@ -907,11 +916,16 @@ def age_note(user):
     return ''
 
 
-def day_overview_text(user, day_index, mods):
+PLACE_SHORT = {GYM: '🏢 в зале', HOME: '🏠 дома'}
+
+
+def day_overview_text(user, day_index, mods, place=None):
     days = user['days']
-    day = plan_day(user, day_index, mods)
+    place = place or user['place']
+    day = plan_day(user, day_index, mods, place)
+    where = PLACE_SHORT[place] + (' (только сегодня)' if place != user['place'] else '')
     lines = [f'<b>🏋️ День {day_index % days + 1} из {days} — {html.escape(day.title)}</b>',
-             f'Группы мышц: <b>{", ".join(day.groups)}</b>', '']
+             f'Группы мышц: <b>{", ".join(day.groups)}</b>', f'📍 Тренируемся {where}', '']
     for note in mods['notes']:
         lines += [note, '']
     for i, p in enumerate(day.exercises, 1):
@@ -968,7 +982,7 @@ def program_text(user):
 
 
 def exercise_card(user, wk):
-    day = plan_day(user, wk['day'], wk.get('mods'))
+    day = plan_day(user, wk['day'], wk.get('mods'), wk.get('place'))
     p = day.exercises[wk['ex_pos']]
     prev = previous_sets(user['user_id'], p.exercise.id, wk['wid'])
     done = [s for s in workout_sets(wk['wid']) if s['exercise_id'] == p.exercise.id]
@@ -1184,7 +1198,7 @@ async def send_technique(message, ex, user):
 
 async def send_card(message, user, wk, prefix=''):
     """Карточка упражнения; перед первым подходом — картинки техники."""
-    day = plan_day(user, wk['day'], wk.get('mods'))
+    day = plan_day(user, wk['day'], wk.get('mods'), wk.get('place'))
     ex = day.exercises[wk['ex_pos']].exercise
     if wk['set_no'] == 1 and not prefix:
         await send_photos(message, ex, user.get('gender') or 'm')
@@ -1370,7 +1384,9 @@ async def settings(update: Update, context: ContextTypes.DEFAULT_TYPE):
         f'Цель: {GOALS[user["goal"]]}\nОпыт: {LEVELS[user["level"]]}\n'
         f'Где: {PLACES[user["place"]]}\nТренировок в неделю: {user["days"]}\nТаймер отдыха: {timer}',
         parse_mode=ParseMode.HTML,
-        reply_markup=kb([[('🔄 Заполнить анкету заново', 's:redo')], [(f'Таймер отдыха: {timer}', 's:timer')]]))
+        reply_markup=kb([[('🔄 Заполнить анкету заново', 's:redo')],
+                         [(f'📍 Место по умолчанию: {PLACE_SHORT[user["place"]]}', 's:place')],
+                         [(f'Таймер отдыха: {timer}', 's:timer')]]))
 
 
 async def show_today(update: Update, context: ContextTypes.DEFAULT_TYPE, day_index=None):
@@ -1385,14 +1401,17 @@ async def show_today(update: Update, context: ContextTypes.DEFAULT_TYPE, day_ind
         day_index = user['day_index']
     day_index %= user['days']
     mods = today_mods(user)
+    place = place_today(user, context.user_data)
     rows = [[('▶️ Начать тренировку', f'w:start:{day_index}')]]
     info = cycle_info(user)
     if info and PHASES[info['phase']][2]:
         rows = [[('▶️ Начать облегчённую', f'w:start:{day_index}')],
                 [('💪 Чувствую себя отлично — обычная', f'w:start:{day_index}:std')]]
+    other = HOME if place == GYM else GYM
+    rows.append([({GYM: '🏢 Сегодня в зале', HOME: '🏠 Сегодня дома'}[other], f'w:place:{day_index}:{other}')])
     rows.append([('🔀 Выбрать другой день', 'w:pick')])
-    rows += technique_rows(plan_day(user, day_index))
-    await update.effective_message.reply_text(day_overview_text(user, day_index, mods), parse_mode=ParseMode.HTML,
+    rows += technique_rows(plan_day(user, day_index, place=place))
+    await update.effective_message.reply_text(day_overview_text(user, day_index, mods, place), parse_mode=ParseMode.HTML,
                                               reply_markup=kb(rows))
 
 
@@ -1602,7 +1621,7 @@ async def log_set(update: Update, context: ContextTypes.DEFAULT_TYPE, weight, re
     uid = update.effective_user.id
     wk = context.user_data['wk']
     user = get_user(uid)
-    day = plan_day(user, wk['day'], wk.get('mods'))
+    day = plan_day(user, wk['day'], wk.get('mods'), wk.get('place'))
     p = day.exercises[wk['ex_pos']]
     add_set(wk['wid'], uid, p.exercise.id, wk['set_no'], weight, reps)
     msg = f'✅ Подход {wk["set_no"]}: {fmt_set(weight, reps, p.presc.unit)}'
@@ -1631,7 +1650,7 @@ async def next_exercise(message, context, uid, rest=None):
     if not wk:
         return
     user = get_user(uid)
-    day = plan_day(user, wk['day'], wk.get('mods'))
+    day = plan_day(user, wk['day'], wk.get('mods'), wk.get('place'))
     wk['ex_pos'] += 1
     wk['set_no'] = 1
     context.user_data['wk'] = wk
@@ -1657,6 +1676,14 @@ async def callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # --- Настройки ---
     if data == 's:redo':
         await ask_gender(message, context)
+    elif data == 's:place':
+        user = get_user(uid)
+        if profile_complete(user) and not context.user_data.get('wk'):
+            new = HOME if user['place'] == GYM else GYM
+            set_user_field(uid, 'place', new)
+            context.user_data.pop('place_today', None)
+            await message.edit_text(f'📍 Теперь по умолчанию тренируемся {PLACE_SHORT[new]}. '
+                                    f'Программа пересобрана под это место — смотри «{BTN_PROGRAM}».')
     elif data == 's:timer':
         user = get_user(uid)
         if user:
@@ -1677,6 +1704,13 @@ async def callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
             [[(f'День {i + 1}: {d.title}', f'w:show:{i}')] for i, d in enumerate(program)]))
     elif data.startswith('w:show:'):
         await show_today(update, context, int(data.split(':')[2]))
+    elif data.startswith('w:place:'):
+        parts = data.split(':')
+        if len(parts) == 4 and parts[2].isdigit() and parts[3] in PLACES and not context.user_data.get('wk'):
+            context.user_data['place_today'] = {'date': now().date().isoformat(), 'place': parts[3]}
+            await message.reply_text(f'Ок, сегодня тренируемся {PLACE_SHORT[parts[3]]}. '
+                                     'Программа дня та же, упражнения подобраны под это место.')
+            await show_today(update, context, int(parts[2]))
     elif data.startswith('w:start:'):
         user = get_user(uid)
         if not profile_complete(user):
@@ -1687,10 +1721,12 @@ async def callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         parts = data.split(':')
         day_index = int(parts[2]) % user['days']
         mods = today_mods(user, standard=len(parts) > 3 and parts[3] == 'std')
-        day = plan_day(user, day_index, mods)
-        wid = start_workout(uid, day_index, day.title)
+        place = place_today(user, context.user_data)
+        day = plan_day(user, day_index, mods, place)
+        title = day.title + (' (дома)' if place == HOME else ' (в зале)') if place != user['place'] else day.title
+        wid = start_workout(uid, day_index, title)
         context.user_data['wk'] = {'wid': wid, 'day': day_index, 'ex_pos': 0, 'set_no': 1, 'mods': mods,
-                                   'started': now().isoformat(timespec='seconds')}
+                                   'place': place, 'started': now().isoformat(timespec='seconds')}
         context.user_data.pop('await', None)
         await message.reply_text(f'Поехали! 🔥 {day.note}')
         await send_card(message, user, context.user_data['wk'])
@@ -1698,7 +1734,7 @@ async def callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         wk = context.user_data.get('wk')
         user = get_user(uid)
         if wk and profile_complete(user):
-            ex = plan_day(user, wk['day'], wk.get('mods')).exercises[wk['ex_pos']].exercise
+            ex = plan_day(user, wk['day'], wk.get('mods'), wk.get('place')).exercises[wk['ex_pos']].exercise
             await send_technique(message, ex, user)
 
     # --- Техника ---
@@ -1909,6 +1945,8 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         f'• «{BTN_TODAY}» — какие мышцы тренируем, упражнения, подходы, повторы, отдых и стартовые веса. '
         'Во время тренировки отправляй результат каждого подхода: <code>60 10</code> (вес и повторы) '
         'или <code>12</code> (только повторы).\n'
+        'Там же кнопка «🏠 Сегодня дома» / «🏢 Сегодня в зале» — упражнения подберутся под место '
+        'только на сегодня.\n'
         f'• «{BTN_PROGRAM}» — вся недельная программа.\n'
         f'• «{BTN_PROGRESS}» — статистика, личные рекорды, история.\n'
         f'• «{BTN_WEIGHT}» — дневник веса тела.\n'

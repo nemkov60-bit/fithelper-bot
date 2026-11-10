@@ -320,3 +320,21 @@ class RussianPromptTests(unittest.TestCase):
             for i in range(1, fb.frame_count(ex.id) + 1):
                 for gender in ('', 'f'):
                     self.assertLess(len(fb.ask_photo_text(ex, i, gender)), 4000)
+
+
+class PlaceTodayTests(unittest.TestCase):
+    def test_place_override_only_today(self):
+        user = {'place': fb.GYM}
+        today = fb.now().date().isoformat()
+        self.assertEqual(fb.place_today(user, {}), fb.GYM)
+        self.assertEqual(fb.place_today(user, {'place_today': {'date': today, 'place': fb.HOME}}), fb.HOME)
+        self.assertEqual(fb.place_today(user, {'place_today': {'date': '2000-01-01', 'place': fb.HOME}}), fb.GYM)
+
+    def test_same_day_different_exercises(self):
+        user = {'user_id': 1, 'goal': 'mass', 'level': 'mid', 'days': 4, 'place': fb.GYM, 'gender': 'm', 'age': '30'}
+        gym = fb.plan_day(user, 0)
+        home = fb.plan_day(user, 0, place=fb.HOME)
+        self.assertEqual(gym.title, home.title)
+        self.assertEqual(gym.groups, home.groups)
+        self.assertTrue(all(fb.HOME in p.exercise.places for p in home.exercises))
+        self.assertNotEqual([p.exercise.id for p in gym.exercises], [p.exercise.id for p in home.exercises])
