@@ -284,3 +284,29 @@ class TechniqueTests(unittest.TestCase):
         self.assertEqual(fb.photo_coverage('plank'), (1, 2))
         fb.delete_photo('plank', 1, '')
         self.assertEqual(fb.photo_coverage('plank'), (0, 2))
+
+
+class RussianPromptTests(unittest.TestCase):
+    def test_every_frame_has_russian_prompt(self):
+        import exercise_images as ei
+        import exercise_images_ru as ru
+        self.assertEqual(set(ru.FRAMES_RU), set(ei.EXERCISE_FRAMES))
+        for ex_id, (_, frames) in ei.EXERCISE_FRAMES.items():
+            self.assertEqual(len(ru.FRAMES_RU[ex_id]), len(frames), ex_id)
+            for i in range(len(frames)):
+                prompt = ru.build_prompt_ru(ex_id, i)
+                self.assertIn('без текста', prompt)
+                self.assertIn(ru.FEMALE_PERSON_RU, ru.build_prompt_ru(ex_id, i, female=True))
+
+    def test_russian_markdown_is_up_to_date(self):
+        import exercise_images_ru as ru
+        md = Path(__file__).resolve().parents[1] / 'IMAGE_PROMPTS_RU.md'
+        self.assertEqual(md.read_text(encoding='utf-8'), ru.build_markdown_ru(fb._EXERCISE_LIST),
+                         'Перегенерируй: python exercise_images_ru.py')
+
+    def test_admin_prompt_messages_fit(self):
+        for ex in fb._EXERCISE_LIST:
+            for lang in ('f', 'en'):
+                self.assertLess(len(fb.admin_prompts_text(ex, lang)), 4096, ex.id)
+            for i in range(1, fb.frame_count(ex.id) + 1):
+                self.assertLess(len(fb.ask_photo_text(ex, i, 'f')), 4000)

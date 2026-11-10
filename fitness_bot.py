@@ -35,9 +35,11 @@ from telegram.ext import (Application, CallbackQueryHandler, CommandHandler, Con
 
 try:
     from exercise_images import EXERCISE_FRAMES, build_prompt
+    from exercise_images_ru import build_prompt_ru
     from exercise_technique import TECHNIQUE
 except ImportError:  # pragma: no cover
     from fitness_bot.exercise_images import EXERCISE_FRAMES, build_prompt
+    from fitness_bot.exercise_images_ru import build_prompt_ru
     from fitness_bot.exercise_technique import TECHNIQUE
 
 ROOT = Path(__file__).resolve().parent
@@ -2000,8 +2002,20 @@ def admin_exercise_text(ex):
         common = '✅' if photo_source(ex.id, i, '', stored) else '▫️'
         female = '✅' if photo_source(ex.id, i, 'f', stored) else '▫️'
         lines += [f'<b>Кадр {i}.</b> {html.escape(caption)}', f'Общее: {common}  ·  👩 Женское: {female}',
-                  f'<code>{html.escape(build_prompt(ex.id, i - 1))}</code>', '']
-    lines.append(f'Для женской версии замени в промте персонажа на: <code>{FEMALE_PERSON}</code>')
+                  f'<code>{html.escape(build_prompt_ru(ex.id, i - 1))}</code>', '']
+    lines.append('Нажми на промт, чтобы скопировать. Женские и английские версии — кнопками ниже.')
+    return '\n'.join(lines)
+
+
+def admin_prompts_text(ex, lang):
+    """Промты всех кадров: lang='f' — женская версия на русском, 'en' — на английском."""
+    title = '👩 Женская версия' if lang == 'f' else '🇬🇧 English'
+    lines = [f'<b>{title}: {html.escape(ex.name)}</b>', '']
+    for i, (caption, _) in enumerate(EXERCISE_FRAMES[ex.id][1], 1):
+        prompt = build_prompt_ru(ex.id, i - 1, female=True) if lang == 'f' else build_prompt(ex.id, i - 1)
+        lines += [f'<b>Кадр {i}.</b> {html.escape(caption)}', f'<code>{html.escape(prompt)}</code>', '']
+    if lang == 'en':
+        lines.append(f'Female version: replace the character with <code>{FEMALE_PERSON}</code>')
     return '\n'.join(lines)
 
 
@@ -2014,6 +2028,7 @@ def admin_exercise_kb(ex):
         dels = [(f'🗑 Кадр {i}' + (' 👩' if g else ''), f'ad:del:{ex.id}:{i}:{g}') for g in ('', 'f') if (i, g) in stored]
         if dels:
             rows.append(dels)
+    rows.append([('👩 Женские промты', f'ad:fp:{ex.id}'), ('🇬🇧 English', f'ad:en:{ex.id}')])
     rows.append([('👁 Как видит пользователь', f't:{ex.id}')])
     rows.append([('⬅️ К упражнениям', f'ad:g:{ex.group}')])
     return kb(rows)
@@ -2026,7 +2041,9 @@ async def show_admin_exercise(message, ex):
 def ask_photo_text(ex, frame, gender):
     caption = EXERCISE_FRAMES[ex.id][1][frame - 1][0]
     who = ' (женская версия 👩)' if gender == 'f' else ''
-    return (f'📤 Отправь фото для «{ex.name}», кадр {frame}{who}:\n{caption}\n\n'
+    prompt = build_prompt_ru(ex.id, frame - 1, female=gender == 'f')
+    return (f'📤 Отправь фото для «{html.escape(ex.name)}», кадр {frame}{who}:\n{html.escape(caption)}\n\n'
+            f'Промт:\n<code>{html.escape(prompt)}</code>\n\n'
             'Можно обычным фото или файлом. /cancel — отменить.')
 
 
@@ -2047,13 +2064,16 @@ async def admin_callback(data, update, context):
                                  parse_mode=ParseMode.HTML, reply_markup=admin_group_kb(parts[2]))
     elif parts[1] == 'e' and len(parts) == 3 and parts[2] in EXERCISES:
         await show_admin_exercise(message, EXERCISES[parts[2]])
+    elif parts[1] in ('fp', 'en') and len(parts) == 3 and parts[2] in EXERCISES:
+        lang = 'f' if parts[1] == 'fp' else 'en'
+        await message.reply_text(admin_prompts_text(EXERCISES[parts[2]], lang), parse_mode=ParseMode.HTML)
     elif parts[1] in ('up', 'del') and len(parts) == 5 and parts[2] in EXERCISES and parts[3].isdigit():
         ex, frame, gender = EXERCISES[parts[2]], int(parts[3]), parts[4]
         if not 1 <= frame <= frame_count(ex.id) or gender not in ('', 'f'):
             return
         if parts[1] == 'up':
             context.user_data['await'] = f'photo:{ex.id}:{frame}:{gender}'
-            await message.reply_text(ask_photo_text(ex, frame, gender))
+            await message.reply_text(ask_photo_text(ex, frame, gender), parse_mode=ParseMode.HTML)
         else:
             delete_photo(ex.id, frame, gender)
             await message.reply_text(f'🗑 Фото кадра {frame} удалено.')
@@ -2101,7 +2121,7 @@ async def photo_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 and not photo_source(ex_id, i, gender, stored)), None)
     if nxt:
         context.user_data['await'] = f'photo:{ex_id}:{nxt}:{gender}'
-        await message.reply_text(text + '\n\n' + ask_photo_text(ex, nxt, gender))
+        await message.reply_text(html.escape(text) + '\n\n' + ask_photo_text(ex, nxt, gender), parse_mode=ParseMode.HTML)
     else:
         context.user_data.pop('await', None)
         await message.reply_text(text + ' Все кадры этого упражнения загружены 🎉')
