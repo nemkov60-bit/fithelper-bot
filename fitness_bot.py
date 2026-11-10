@@ -70,6 +70,9 @@ TZ_NAME = os.environ.get('FITNESS_TZ', 'Europe/Moscow')
 
 log = logging.getLogger('fitness_bot')
 
+# Версия кода: видна в «🛠 Админ» и в логах запуска — по ней видно, обновился ли бот на хостинге.
+BOT_VERSION = '2026-11-10 · фото 4K 👨/👩 · зал или дом'
+
 
 def now():
     if ZoneInfo:
@@ -1998,7 +2001,7 @@ def admin_stats_text():
         workouts = c.execute('SELECT COUNT(*) FROM workouts WHERE finished_at IS NOT NULL').fetchone()[0]
         week = c.execute('SELECT COUNT(DISTINCT user_id) FROM workouts WHERE finished_at>=?',
                          ((now() - timedelta(days=7)).isoformat(timespec='seconds'),)).fetchone()[0]
-    lines = ['<b>🛠 Админ-панель</b>', '',
+    lines = ['<b>🛠 Админ-панель</b>', f'Версия бота: <code>{BOT_VERSION}</code>', '',
              f'👥 Пользователей: <b>{users}</b>',
              f'🏋️ Завершённых тренировок: <b>{workouts}</b>',
              f'🔥 Активных за 7 дней: <b>{week}</b>', '', '<b>📸 Фото техники</b>']
@@ -2234,7 +2237,7 @@ def main():
         print('Не задан FITNESS_BOT_TOKEN. Укажи его в переменных окружения или в fitness_bot/.env', flush=True)
         return
     app = build_app(token)
-    print(f'Фитнес-бот запущен. Данные: {DATA_DIR}', flush=True)
+    print(f'Фитнес-бот запущен. Версия: {BOT_VERSION}. Данные: {DATA_DIR}', flush=True)
     app.run_polling(allowed_updates=Update.ALL_TYPES)
 
 
