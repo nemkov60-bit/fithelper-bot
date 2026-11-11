@@ -37,10 +37,13 @@ try:
     from exercise_images import EXERCISE_FRAMES, build_prompt
     from exercise_images_ru import build_prompt_ru
     from exercise_technique import TECHNIQUE
+    from warmup import (CARDIO, JOINT_WARMUP, STRETCHES, cardio_minutes, cardio_options, pulse_range)
 except ImportError:  # pragma: no cover
     from fitness_bot.exercise_images import EXERCISE_FRAMES, build_prompt
     from fitness_bot.exercise_images_ru import build_prompt_ru
     from fitness_bot.exercise_technique import TECHNIQUE
+    from fitness_bot.warmup import (CARDIO, JOINT_WARMUP, STRETCHES, cardio_minutes, cardio_options,
+                                    pulse_range)
 
 ROOT = Path(__file__).resolve().parent
 IMAGES_DIR = Path(os.environ.get('FITNESS_IMAGES', ROOT / 'images'))
@@ -71,7 +74,7 @@ TZ_NAME = os.environ.get('FITNESS_TZ', 'Europe/Moscow')
 log = logging.getLogger('fitness_bot')
 
 # Версия кода: видна в «🛠 Админ» и в логах запуска — по ней видно, обновился ли бот на хостинге.
-BOT_VERSION = '2026-11-10 · фото 4K 👨/👩 · зал или дом'
+BOT_VERSION = '2026-11-11 · разминка/заминка · ввод веса'
 
 
 def now():
@@ -707,6 +710,9 @@ def init_db():
             user_id INTEGER, exercise_id TEXT, target REAL, PRIMARY KEY(user_id, exercise_id));
         CREATE TABLE IF NOT EXISTS cycle_log(
             user_id INTEGER, start_date TEXT, PRIMARY KEY(user_id, start_date));
+        CREATE TABLE IF NOT EXISTS cardio(
+            id INTEGER PRIMARY KEY AUTOINCREMENT, workout_id INTEGER, user_id INTEGER, phase TEXT, kind TEXT,
+            minutes INTEGER, created_at TEXT);
         CREATE TABLE IF NOT EXISTS exercise_photos(
             exercise_id TEXT, frame INTEGER, gender TEXT, file_id TEXT, added_at TEXT,
             PRIMARY KEY(exercise_id, frame, gender));
@@ -810,8 +816,34 @@ def finish_workout_db(wid):
         c.execute('UPDATE workouts SET finished_at=? WHERE id=?', (now().isoformat(timespec='seconds'), wid))
 
 
+def add_cardio(wid, uid, phase, kind, minutes):
+    with connect() as c:
+        c.execute('INSERT INTO cardio(workout_id,user_id,phase,kind,minutes,created_at) VALUES(?,?,?,?,?,?)',
+                  (wid, uid, phase, kind, minutes, now().isoformat(timespec='seconds')))
+
+
+def workout_cardio(wid):
+    with connect() as c:
+        return [dict(r) for r in c.execute('SELECT * FROM cardio WHERE workout_id=? ORDER BY id', (wid,))]
+
+
+def cardio_minutes_since(uid, since):
+    with connect() as c:
+        row = c.execute('''SELECT SUM(k.minutes) FROM cardio k JOIN workouts w ON w.id=k.workout_id
+                           WHERE k.user_id=? AND w.finished_at IS NOT NULL AND k.created_at>=?''',
+                        (uid, since.isoformat(timespec='seconds'))).fetchone()
+    return row[0] or 0
+
+
+def cardio_line(row):
+    name = CARDIO[row['kind']][0] if row['kind'] in CARDIO else row['kind']
+    phase = '🔥 Разминка' if row['phase'] == 'warmup' else '🧊 Заминка'
+    return f'{phase}: {name} — {row["minutes"]} мин'
+
+
 def delete_workout(wid):
     with connect() as c:
+        c.execute('DELETE FROM cardio WHERE workout_id=?', (wid,))
         c.execute('DELETE FROM sets WHERE workout_id=?', (wid,))
         c.execute('DELETE FROM workouts WHERE id=?', (wid,))
 
@@ -1001,22 +1033,116 @@ def exercise_card(user, wk):
     if done:
         lines.append('Сегодня: ' + ', '.join(fmt_set(s['weight'], s['reps'], p.presc.unit) for s in done))
     lines.append('')
+    weight = current_weight(user, wk, p, done, prev)
+    eq = equipment_of(p.exercise)
     if p.presc.unit == 'sec':
-        example = '45'
-    elif p.exercise.bodyweight:
-        example = '12  (или «10 8» — доп. вес 10 кг × 8)'
+        lines.append(f'<b>Подход {wk["set_no"]}/{p.presc.sets}</b> — нажми время или отправь число секунд.')
     else:
-        known = [s['weight'] for s in done if s['weight']] or [w for w, _ in prev if w]
-        hint = re.search(r'\d+(?:\.\d+)?', start_weight(p.exercise, user))
-        weight = fmt_w(known[-1]) if known else (hint.group(0) if hint else '20')
-        example = f'{weight} {p.presc.hi}'
-    lines.append(f'<b>Подход {wk["set_no"]}/{p.presc.sets}</b> — отправь результат, например: <code>{example}</code>')
-    rows = []
-    if done:
-        rows.append([('🔁 Как прошлый подход', 'w:repeat')])
+        what = EQUIPMENT[eq][1]
+        lines.append(f'⚖️ Вес: <b>{fmt_w(weight)} кг</b> — {what}. Меняй кнопками − / + или нажми на вес.')
+        lines.append(f'<b>Подход {wk["set_no"]}/{p.presc.sets}</b> — нажми, сколько повторов сделал(а), '
+                     f'или отправь <code>{fmt_w(weight) + " " if weight else ""}{p.presc.hi}</code>.')
+    rows = set_buttons(p, weight, bool(done))
     rows.append([('📖 Техника', f't:{p.exercise.id}')])
     rows.append([('⏭ Следующее упражнение', 'w:next'), ('🏁 Завершить', 'w:finish')])
     return '\n'.join(lines), kb(rows)
+
+
+# Снаряды: (название, что вводить, (малый шаг, большой шаг) в кг)
+EQUIPMENT = {
+    'barbell': ('штанга', 'общий вес штанги вместе с грифом', (2.5, 5)),
+    'ez': ('EZ-гриф', 'общий вес вместе с грифом', (1.25, 2.5)),
+    'dumbbell': ('гантели', 'вес одной гантели', (1, 2)),
+    'machine': ('тренажёр', 'вес, выставленный на тренажёре', (2.5, 5)),
+    'plates': ('блины', 'вес блинов на платформе', (5, 10)),
+    'load': ('рюкзак/бутылки', 'вес рюкзака или бутылок', (0.5, 1)),
+    'bodyweight': ('свой вес', 'дополнительный вес (пояс, жилет, рюкзак); 0 — без отягощения', (2.5, 5)),
+}
+EXERCISE_EQUIPMENT = {
+    'barbell': ('bench', 'row_bb', 'ohp', 'squat', 'rdl', 'deadlift', 'hip_thrust', 'bb_curl'),
+    'ez': ('french',),
+    'dumbbell': ('incline_db', 'db_fly', 'row_db', 'db_press', 'lat_raise', 'rear_delt', 'lunge_db', 'hammer'),
+    'machine': ('cable_cross', 'lat_pulldown', 'seated_row', 'leg_ext', 'leg_curl', 'cable_kickback', 'pushdown',
+                'cable_crunch', 'calf_machine'),
+    'plates': ('leg_press',),
+    'load': ('backpack_curl', 'backpack_row', 'backpack_press', 'bottle_ext'),
+}
+_EQUIPMENT_BY_EX = {ex_id: eq for eq, ids in EXERCISE_EQUIPMENT.items() for ex_id in ids}
+BAR_WEIGHTS = (20, 15, 10, 7)
+
+
+def equipment_of(ex):
+    return _EQUIPMENT_BY_EX.get(ex.id, 'bodyweight')
+
+
+def current_weight(user, wk, p, done=None, prev=None):
+    """Рабочий вес для следующего подхода: выбранный, последний сегодня, прошлый раз или стартовый."""
+    chosen = (wk.get('weights') or {}).get(p.exercise.id)
+    if chosen is not None:
+        return chosen
+    if done is None:
+        done = [s for s in workout_sets(wk['wid']) if s['exercise_id'] == p.exercise.id]
+    if done:
+        return done[-1]['weight']
+    if prev is None:
+        prev = previous_sets(user['user_id'], p.exercise.id, wk['wid'])
+    if prev:
+        return max(w for w, _ in prev)
+    if equipment_of(p.exercise) == 'bodyweight':
+        return 0.0
+    hint = re.search(r'\d+(?:\.\d+)?', start_weight(p.exercise, user))
+    return float(hint.group(0)) if hint else 0.0
+
+
+def rep_options(presc):
+    if presc.unit == 'sec':
+        return [30, 45, 60, 90]
+    lo, hi = presc.lo, presc.hi
+    if hi - lo <= 4:
+        return list(range(lo, hi + 1))
+    step = max(1, round((hi - lo) / 4))
+    values = list(range(lo, hi + 1, step))
+    if values[-1] != hi:
+        values[-1] = hi
+    return values
+
+
+def set_buttons(p, weight, has_sets):
+    """Кнопки ввода подхода: вес − / + и повторы одним нажатием."""
+    rows = []
+    if p.presc.unit == 'reps':
+        small, big = EQUIPMENT[equipment_of(p.exercise)][2]
+        label = f'⚖️ {"+" if equipment_of(p.exercise) == "bodyweight" and weight else ""}{fmt_w(weight)} кг'
+        rows.append([(f'−{fmt_w(big)}', f'ws:d:-{big}'), (f'−{fmt_w(small)}', f'ws:d:-{small}'),
+                     (label, 'ws:in'),
+                     (f'+{fmt_w(small)}', f'ws:d:{small}'), (f'+{fmt_w(big)}', f'ws:d:{big}')])
+        if equipment_of(p.exercise) in ('barbell', 'ez'):
+            rows.append([('🧮 Гриф + блины', 'ws:bar')])
+    unit = 'с' if p.presc.unit == 'sec' else ''
+    rows.append([(f'{n}{unit}', f'ws:r:{n}') for n in rep_options(p.presc)])
+    if has_sets:
+        rows.append([('🔁 Как прошлый подход', 'w:repeat')])
+    return rows
+
+
+def parse_weight_input(text):
+    """«60», «62,5», «20+2*15», «10+10» → кг."""
+    t = (text or '').lower().replace(',', '.').replace('кг', '').replace('kg', '').replace(' ', '')
+    t = t.replace('х', '*').replace('x', '*').replace('×', '*')
+    if not t or not re.fullmatch(r'[\d.+*]+', t):
+        return None
+    total = 0.0
+    for term in t.split('+'):
+        if not term:
+            return None
+        value = 1.0
+        for factor in term.split('*'):
+            try:
+                value *= float(factor)
+            except ValueError:
+                return None
+        total += value
+    return round(total, 2) if 0 <= total <= 500 else None
 
 
 def cycle_screen_text(user):
@@ -1210,6 +1336,173 @@ async def send_card(message, user, wk, prefix=''):
 
 
 # ======================================================================
+# Разминка и заминка
+# ======================================================================
+
+def cardio_card_text(user, wk, phase):
+    ag = age_group(user.get('age'))
+    lo, hi, _ = cardio_minutes(phase, user['goal'], ag)
+    p_lo, p_hi = pulse_range(phase, user['goal'], user.get('age'))
+    day = plan_day(user, wk['day'], wk.get('mods'), wk.get('place'))
+    if phase == 'warmup':
+        lines = ['<b>🔥 Разминка — 2 шага</b>', '',
+                 f'<b>1. Кардио {lo}–{hi} мин</b> — выбери тренажёр ниже.',
+                 f'Темп лёгкий: можешь свободно говорить. Пульс ~{p_lo}–{p_hi} уд/мин.', '',
+                 '<b>2. Суставная гимнастика</b> (2–3 мин):']
+        lines += [f'• {item}' for item in JOINT_WARMUP]
+        first = day.exercises[0]
+        if equipment_of(first.exercise) != 'bodyweight':
+            lines += ['', f'💡 Перед «{first.exercise.name}» сделай 1–2 разминочных подхода с лёгким весом.']
+    else:
+        tempo = ('ровный умеренный темп — это работа на жиросжигание' if user['goal'] == 'fat_loss'
+                 else 'спокойный темп, постепенно замедляйся')
+        lines = ['<b>🧊 Заминка — 2 шага</b>', '',
+                 f'<b>1. Кардио {lo}–{hi} мин</b> — {tempo}. Пульс ~{p_lo}–{p_hi} уд/мин.', '',
+                 '<b>2. Растяжка</b> мышц, которые работали сегодня — по 20–30 сек, без рывков:']
+        groups = list(dict.fromkeys(p.exercise.group for p in day.exercises))
+        lines += [f'• {STRETCHES[g]}' for g in groups if g in STRETCHES]
+    lines += ['', 'Выбери тренажёр:']
+    return '\n'.join(lines)
+
+
+def cardio_kinds(user, wk, phase):
+    kinds = cardio_options(wk.get('place') or user['place'], age_group(user.get('age')))
+    if phase == 'cooldown':  # для заминки — без прыжков
+        kinds = [k for k in kinds if not CARDIO[k][2]] or kinds
+    return kinds
+
+
+async def send_cardio_card(message, context, user, phase):
+    wk = context.user_data['wk']
+    kinds = cardio_kinds(user, wk, phase)
+    buttons = [(CARDIO[k][0], f'wu:k:{k}') for k in kinds]
+    rows = [buttons[i:i + 2] for i in range(0, len(buttons), 2)]
+    skip = '⏭ Пропустить разминку' if phase == 'warmup' else '🏁 Завершить без заминки'
+    rows.append([(skip, 'wu:skip')])
+    await message.reply_text(cardio_card_text(user, wk, phase), parse_mode=ParseMode.HTML, reply_markup=kb(rows))
+
+
+async def start_cardio_stage(message, context, user, phase):
+    wk = context.user_data['wk']
+    cancel_rest(user['user_id'])
+    wk['stage'] = phase
+    wk.pop('cardio_kind', None)
+    context.user_data['wk'] = wk
+    if phase == 'cooldown':
+        await message.reply_text('💪 Основная часть позади! Осталась заминка — она ускорит восстановление.')
+    else:
+        await message.reply_text('Поехали! 🔥 Начинаем с разминки — она разогреет мышцы и суставы и снизит риск травм.')
+    await send_cardio_card(message, context, user, phase)
+
+
+async def finish_cardio(message, context, user, minutes):
+    wk = context.user_data['wk']
+    phase, kind = wk.get('stage'), wk.get('cardio_kind')
+    if kind and minutes:
+        add_cardio(wk['wid'], user['user_id'], phase, kind, minutes)
+    await end_cardio_stage(message, context, user)
+
+
+async def end_cardio_stage(message, context, user):
+    wk = context.user_data['wk']
+    phase = wk.get('stage')
+    wk.pop('cardio_kind', None)
+    if phase == 'warmup':
+        wk['stage'] = 'main'
+        context.user_data['wk'] = wk
+        await message.reply_text('✅ Разминка готова. Переходим к основной части!')
+        await send_card(message, user, wk)
+    else:
+        await finish_workout(message, context, user['user_id'])
+
+
+async def cardio_callback(data, update, context):
+    message = update.callback_query.message
+    wk = context.user_data.get('wk')
+    user = get_user(update.effective_user.id)
+    if not wk or not profile_complete(user) or wk.get('stage') not in ('warmup', 'cooldown'):
+        return
+    phase = wk['stage']
+    parts = data.split(':')
+    if parts[1] == 'k' and len(parts) == 3 and parts[2] in CARDIO:
+        kind = parts[2]
+        wk['cardio_kind'] = kind
+        context.user_data['wk'] = wk
+        name, _, _, how = CARDIO[kind]
+        lo, hi, default = cardio_minutes(phase, user['goal'], age_group(user.get('age')))
+        p_lo, p_hi = pulse_range(phase, user['goal'], user.get('age'))
+        tempo = 'в лёгком темпе' if phase == 'warmup' else 'в спокойном темпе, к концу замедляйся'
+        await message.reply_text(
+            f'<b>{name}</b> — {lo}–{hi} мин {tempo}.\nКак: {how}.\nПульс ~{p_lo}–{p_hi} уд/мин.\n\n'
+            'Когда закончишь — нажми кнопку с минутами или отправь своё число.',
+            parse_mode=ParseMode.HTML,
+            reply_markup=kb([[(f'✅ {m} мин', f'wu:done:{m}') for m in sorted({lo, default, hi})],
+                             [('🔀 Другой тренажёр', 'wu:menu'), ('⏭ Пропустить', 'wu:skip')]]))
+    elif parts[1] == 'done' and len(parts) == 3 and parts[2].isdigit() and wk.get('cardio_kind'):
+        await finish_cardio(message, context, user, int(parts[2]))
+    elif parts[1] == 'menu':
+        await send_cardio_card(message, context, user, phase)
+    elif parts[1] == 'skip':
+        await end_cardio_stage(message, context, user)
+
+
+# ======================================================================
+# Ввод веса
+# ======================================================================
+
+def _current_planned(user, wk):
+    return plan_day(user, wk['day'], wk.get('mods'), wk.get('place')).exercises[wk['ex_pos']]
+
+
+async def set_current_weight(message, context, uid, weight, note=''):
+    wk = context.user_data.get('wk')
+    user = get_user(uid)
+    if not wk or wk.get('stage', 'main') != 'main' or not profile_complete(user):
+        return
+    p = _current_planned(user, wk)
+    wk.setdefault('weights', {})[p.exercise.id] = max(0.0, round(weight, 2))
+    context.user_data['wk'] = wk
+    rows = set_buttons(p, wk['weights'][p.exercise.id], bool(workout_sets(wk['wid'])))
+    rows.append([('⏭ Следующее', 'w:next'), ('🏁 Завершить', 'w:finish')])
+    head = (note or f'Вес: <b>{fmt_w(wk["weights"][p.exercise.id])} кг</b>')
+    await message.reply_text(f'{head} — {html.escape(p.exercise.name)}.\n'
+                             f'Подход {wk["set_no"]}/{p.presc.sets}: нажми, сколько повторов сделал(а).',
+                             parse_mode=ParseMode.HTML, reply_markup=kb(rows))
+
+
+async def weight_callback(data, update, context):
+    message = update.callback_query.message
+    uid = update.effective_user.id
+    wk = context.user_data.get('wk')
+    user = get_user(uid)
+    if not wk or wk.get('stage', 'main') != 'main' or not profile_complete(user):
+        return
+    p = _current_planned(user, wk)
+    parts = data.split(':')
+    if parts[1] == 'r' and len(parts) == 3 and parts[2].isdigit():
+        weight = current_weight(user, wk, p) if p.presc.unit == 'reps' else 0.0
+        await log_set(update, context, weight, int(parts[2]))
+    elif parts[1] == 'd' and len(parts) == 3:
+        try:
+            delta = float(parts[2])
+        except ValueError:
+            return
+        await set_current_weight(message, context, uid, current_weight(user, wk, p) + delta)
+    elif data == 'ws:in':
+        context.user_data['await'] = 'ws_weight'
+        what = EQUIPMENT[equipment_of(p.exercise)][1]
+        await message.reply_text(f'⚖️ Отправь вес для «{p.exercise.name}» в кг — {what}.\n'
+                                 'Например: 42.5. Можно сложить: 20+10+10.')
+    elif data == 'ws:bar':
+        await message.reply_text('🧮 Какой гриф?', reply_markup=kb(
+            [[(f'Гриф {b} кг', f'ws:bar:{b}') for b in BAR_WEIGHTS], [('Без грифа (только блины)', 'ws:bar:0')]]))
+    elif parts[1] == 'bar' and len(parts) == 3 and parts[2].isdigit():
+        context.user_data['await'] = f'ws_bar:{parts[2]}'
+        await message.reply_text('Сколько блинов на ОДНОЙ стороне? Отправь их вес, например: 10 или 10+5+2.5.\n'
+                                 'Бот посчитает общий вес: гриф + 2 стороны.')
+
+
+# ======================================================================
 # Таймер отдыха
 # ======================================================================
 
@@ -1398,7 +1691,11 @@ async def show_today(update: Update, context: ContextTypes.DEFAULT_TYPE, day_ind
         return
     wk = context.user_data.get('wk')
     if wk:
-        await send_card(update.effective_message, user, wk, prefix='Тренировка уже идёт — продолжаем!\n\n')
+        if wk.get('stage', 'main') in ('warmup', 'cooldown'):
+            await update.effective_message.reply_text('Тренировка уже идёт — продолжаем!')
+            await send_cardio_card(update.effective_message, context, user, wk['stage'])
+        else:
+            await send_card(update.effective_message, user, wk, prefix='Тренировка уже идёт — продолжаем!\n\n')
         return
     if day_index is None:
         day_index = user['day_index']
@@ -1458,7 +1755,8 @@ async def show_progress(update: Update, context: ContextTypes.DEFAULT_TYPE):
              f'Тренировок всего: <b>{len(total)}</b>',
              f'За 30 дней: <b>{len(month)}</b>',
              f'За 7 дней: <b>{len(week)}</b> из {user["days"]} запланированных',
-             progress_bar(len(week) / user['days']), '']
+             progress_bar(len(week) / user['days']),
+             f'🏃 Кардио за 7 дней: <b>{cardio_minutes_since(uid, t - timedelta(days=7))} мин</b>', '']
     if total:
         last = total[0]
         sets = workout_sets(last['id'])
@@ -1508,6 +1806,7 @@ def history_text(uid):
             name = ex.name if ex else ex_id
             unit = ex.unit if ex else 'reps'
             lines.append(f'• {name}: ' + ', '.join(fmt_set(s['weight'], s['reps'], unit) for s in sets))
+        lines += [cardio_line(r) for r in workout_cardio(w['id'])]
         lines.append('')
     return '\n'.join(lines)
 
@@ -1592,7 +1891,8 @@ async def finish_workout(message, context, uid):
         await message.reply_text('Активной тренировки нет.', reply_markup=menu_for(user))
         return
     sets = workout_sets(wk['wid'])
-    if not sets:
+    cardio = workout_cardio(wk['wid'])
+    if not sets and not cardio:
         delete_workout(wk['wid'])
         await message.reply_text('Тренировка отменена — ни одного подхода не записано.', reply_markup=menu_for(user))
         return
@@ -1612,6 +1912,7 @@ async def finish_workout(message, context, uid):
     lines = ['<b>🏁 Тренировка завершена! Отличная работа 💪</b>', '',
              f'⏱ Длительность: {minutes} мин', f'🏋️ Упражнений: {exercises_done}, подходов: {len(sets)}',
              f'📦 Тоннаж: {fmt_w(tonnage)} кг']
+    lines += [cardio_line(r) for r in cardio]
     if records:
         lines += ['', '🏆 <b>Новые рекорды:</b> ' + ', '.join(records)]
     week = finished_workouts(uid, since=now() - timedelta(days=7))
@@ -1627,6 +1928,7 @@ async def log_set(update: Update, context: ContextTypes.DEFAULT_TYPE, weight, re
     day = plan_day(user, wk['day'], wk.get('mods'), wk.get('place'))
     p = day.exercises[wk['ex_pos']]
     add_set(wk['wid'], uid, p.exercise.id, wk['set_no'], weight, reps)
+    wk.setdefault('weights', {})[p.exercise.id] = weight
     msg = f'✅ Подход {wk["set_no"]}: {fmt_set(weight, reps, p.presc.unit)}'
     if p.presc.unit == 'reps' and reps < p.presc.lo:
         msg += f'\nМеньше плана ({p.presc.lo}+) — в следующем подходе можно снизить вес на 5–10%.'
@@ -1641,8 +1943,9 @@ async def log_set(update: Update, context: ContextTypes.DEFAULT_TYPE, weight, re
         await next_exercise(message, context, uid, rest=p.presc.rest)
         return
     msg += f'\n⏱ Отдых {fmt_rest(p.presc.rest)}. Дальше — подход {wk["set_no"]}/{p.presc.sets}.'
-    await message.reply_text(msg, reply_markup=kb([[('🔁 Повторить', 'w:repeat'), ('⏭ Следующее', 'w:next'),
-                                                   ('🏁 Завершить', 'w:finish')]]))
+    rows = set_buttons(p, current_weight(user, wk, p), True)
+    rows.append([('⏭ Следующее', 'w:next'), ('🏁 Завершить', 'w:finish')])
+    await message.reply_text(msg, reply_markup=kb(rows))
     if user['rest_timer']:
         schedule_rest(context.bot, message.chat_id, uid, p.presc.rest,
                       f'⏰ Отдых окончен — подход {wk["set_no"]}/{p.presc.sets}: {p.exercise.name}')
@@ -1658,7 +1961,7 @@ async def next_exercise(message, context, uid, rest=None):
     wk['set_no'] = 1
     context.user_data['wk'] = wk
     if wk['ex_pos'] >= len(day.exercises):
-        await finish_workout(message, context, uid)
+        await start_cardio_stage(message, context, user, 'cooldown')
         return
     await send_card(message, user, wk)
     if rest and user['rest_timer']:
@@ -1729,10 +2032,10 @@ async def callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         title = day.title + (' (дома)' if place == HOME else ' (в зале)') if place != user['place'] else day.title
         wid = start_workout(uid, day_index, title)
         context.user_data['wk'] = {'wid': wid, 'day': day_index, 'ex_pos': 0, 'set_no': 1, 'mods': mods,
-                                   'place': place, 'started': now().isoformat(timespec='seconds')}
+                                   'place': place, 'stage': 'warmup', 'weights': {},
+                                   'started': now().isoformat(timespec='seconds')}
         context.user_data.pop('await', None)
-        await message.reply_text(f'Поехали! 🔥 {day.note}')
-        await send_card(message, user, context.user_data['wk'])
+        await start_cardio_stage(message, context, user, 'warmup')
     elif data == 'w:photos':  # кнопка из старых сообщений
         wk = context.user_data.get('wk')
         user = get_user(uid)
@@ -1773,7 +2076,15 @@ async def callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
             last = sets[-1]
             await log_set(update, context, last['weight'], last['reps'])
     elif data == 'w:finish':
-        await finish_workout(message, context, uid)
+        wk = context.user_data.get('wk')
+        if wk and wk.get('stage', 'main') == 'main' and workout_sets(wk['wid']):
+            await start_cardio_stage(message, context, get_user(uid), 'cooldown')
+        else:
+            await finish_workout(message, context, uid)
+    elif data.startswith('wu:'):
+        await cardio_callback(data, update, context)
+    elif data.startswith('ws:'):
+        await weight_callback(data, update, context)
 
     # --- История ---
     elif data == 'h:list':
@@ -1923,11 +2234,41 @@ async def text_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         context.user_data.pop('await', None)
         await message.reply_text(goals_text(uid), parse_mode=ParseMode.HTML)
         return
-    if context.user_data.get('wk'):
+    if awaiting in ('ws_weight',) or (awaiting or '').startswith('ws_bar:'):
+        wk = context.user_data.get('wk')
+        value = parse_weight_input(text)
+        if wk is None:
+            context.user_data.pop('await', None)
+        elif value is None:
+            await message.reply_text('Не понял вес. Отправь число в кг, например 42.5 (или /cancel).')
+            return
+        else:
+            if awaiting.startswith('ws_bar:'):
+                bar = float(awaiting.split(':')[1])
+                total = bar + 2 * value
+                note = f'Гриф {fmt_w(bar)} + 2 × {fmt_w(value)} = <b>{fmt_w(total)} кг</b>'
+            else:
+                total, note = value, f'Вес: <b>{fmt_w(value)} кг</b>'
+            context.user_data.pop('await', None)
+            await set_current_weight(message, context, uid, total, note)
+            return
+    wk = context.user_data.get('wk')
+    if wk and wk.get('stage', 'main') in ('warmup', 'cooldown'):
+        if wk.get('cardio_kind') and text.isdigit() and 1 <= int(text) <= 180:
+            await finish_cardio(message, context, get_user(uid), int(text))
+        else:
+            await message.reply_text('Выбери тренажёр кнопкой выше, отправь число минут или нажми «⏭ Пропустить».')
+        return
+    if wk:
         parsed = parse_set(text)
+        if parsed and parsed[0] == 0 and '.' not in text and ',' not in text:
+            # Одно число — это повторы с текущим выбранным весом.
+            user = get_user(uid)
+            p = plan_day(user, wk['day'], wk.get('mods'), wk.get('place')).exercises[wk['ex_pos']]
+            parsed = (current_weight(user, wk, p), parsed[1])
         if not parsed:
-            await message.reply_text('Не понял подход. Формат: «вес повторы», например <code>60 10</code>, '
-                                     'или просто число повторов для упражнений без веса.', parse_mode=ParseMode.HTML)
+            await message.reply_text('Не понял подход. Нажми кнопку с числом повторов или отправь «вес повторы», '
+                                     'например <code>60 10</code>.', parse_mode=ParseMode.HTML)
             return
         await log_set(update, context, *parsed)
         return
@@ -1946,8 +2287,9 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.effective_message.reply_text(
         '<b>Как пользоваться</b>\n\n'
         f'• «{BTN_TODAY}» — какие мышцы тренируем, упражнения, подходы, повторы, отдых и стартовые веса. '
-        'Во время тренировки отправляй результат каждого подхода: <code>60 10</code> (вес и повторы) '
-        'или <code>12</code> (только повторы).\n'
+        'Тренировка идёт по шагам: 🔥 разминка (кардио + суставная гимнастика) → упражнения → '
+        '🧊 заминка (кардио + растяжка). Вес выбирай кнопками − / + (или 🧮 «Гриф + блины»), '
+        'повторы — одной кнопкой. Можно и текстом: <code>60 10</code> — вес и повторы.\n'
         'Там же кнопка «🏠 Сегодня дома» / «🏢 Сегодня в зале» — упражнения подберутся под место '
         'только на сегодня.\n'
         f'• «{BTN_PROGRAM}» — вся недельная программа.\n'

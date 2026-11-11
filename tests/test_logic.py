@@ -338,3 +338,46 @@ class PlaceTodayTests(unittest.TestCase):
         self.assertEqual(gym.groups, home.groups)
         self.assertTrue(all(fb.HOME in p.exercise.places for p in home.exercises))
         self.assertNotEqual([p.exercise.id for p in gym.exercises], [p.exercise.id for p in home.exercises])
+
+
+class WarmupAndWeightTests(unittest.TestCase):
+    def test_equipment_covers_weighted_exercises(self):
+        for ex in fb._EXERCISE_LIST:
+            eq = fb.equipment_of(ex)
+            if ex.bodyweight:
+                self.assertEqual(eq, 'bodyweight', ex.id)
+            else:
+                self.assertNotEqual(eq, 'bodyweight', ex.id)
+
+    def test_parse_weight_input(self):
+        self.assertEqual(fb.parse_weight_input('62,5'), 62.5)
+        self.assertEqual(fb.parse_weight_input('20+10+10'), 40)
+        self.assertEqual(fb.parse_weight_input('20 + 2x15 кг'), 50)
+        self.assertIsNone(fb.parse_weight_input('abc'))
+        self.assertIsNone(fb.parse_weight_input('900'))
+
+    def test_rep_options(self):
+        self.assertEqual(fb.rep_options(fb.Prescription(3, 8, 12, 60)), [8, 9, 10, 11, 12])
+        opts = fb.rep_options(fb.Prescription(3, 6, 15, 60))
+        self.assertEqual((opts[0], opts[-1]), (6, 15))
+        self.assertLessEqual(len(opts), 6)
+        self.assertEqual(fb.rep_options(fb.Prescription(3, 30, 60, 60, 'sec')), [30, 45, 60, 90])
+
+    def test_cardio_by_place_and_age(self):
+        import warmup
+        gym = warmup.cardio_options(fb.GYM, 'adult')
+        home = warmup.cardio_options(fb.HOME, 'adult')
+        self.assertIn('treadmill', gym)
+        self.assertNotIn('treadmill', home)
+        self.assertIn('run_place', home)
+        self.assertNotIn('rope', warmup.cardio_options(fb.HOME, 'senior'))
+        self.assertEqual(warmup.cardio_minutes('cooldown', 'fat_loss', 'adult')[:2], (15, 20))
+        lo, hi = warmup.pulse_range('warmup', 'mass', '30')
+        self.assertTrue(80 <= lo < hi <= 130)
+
+    def test_buttons_fit_callback_limit(self):
+        for ex in fb._EXERCISE_LIST:
+            p = fb.PlannedExercise(ex, 'main', fb.prescription(ex, 'main', 'mass', 'mid'))
+            for row in fb.set_buttons(p, 62.5, True):
+                for _, data in row:
+                    self.assertLessEqual(len(data.encode()), 64)
