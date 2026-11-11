@@ -1862,3 +1862,993 @@ Photorealistic professional fitness photography, 4K, ultra detailed, shot on a f
 ```
 Photorealistic professional fitness photography, 4K, ultra detailed, shot on a full-frame camera with a 50mm lens, soft natural studio lighting, sharp focus, realistic skin texture and anatomy, correct exercise technique and accurate joint angles, full body in frame, the same model throughout the series, no text, no labels, no watermark, no logos, 4:3 aspect ratio. A female fitness model in her late 20s with a toned athletic build, hair tied in a ponytail, wearing a black sports top, grey leggings and white sneakers, in a bright modern living room with a yoga mat on the floor, softly blurred background, dead bug movement, one arm extended overhead toward the floor and the opposite leg extended straight just above the floor, other limbs still, lower back flat, side view.
 ```
+
+## Жим от груди в тренажёре (`machine_press`)
+
+**Кадр 1.** Исходное положение: рукояти у груди, спина прижата
+
+👨 Мужчина — подпись `machine_press 1`
+
+```
+Photorealistic professional fitness photography, 4K, ultra detailed, shot on a full-frame camera with a 50mm lens, soft natural studio lighting, sharp focus, realistic skin texture and anatomy, correct exercise technique and accurate joint angles, full body in frame, the same model throughout the series, no text, no labels, no watermark, no logos, 4:3 aspect ratio. A male fitness model in his late 20s with an athletic, naturally muscular build, short hair, wearing a plain black t-shirt, grey shorts and white sneakers, in a bright modern gym, softly blurred background with bokeh, seated in a chest press machine, back and shoulder blades pressed to the pad, hands on the handles at mid-chest level, elbows bent slightly behind the torso, side view.
+```
+
+👩 Женщина — подпись `machine_press 1 f`
+
+```
+Photorealistic professional fitness photography, 4K, ultra detailed, shot on a full-frame camera with a 50mm lens, soft natural studio lighting, sharp focus, realistic skin texture and anatomy, correct exercise technique and accurate joint angles, full body in frame, the same model throughout the series, no text, no labels, no watermark, no logos, 4:3 aspect ratio. A female fitness model in her late 20s with a toned athletic build, hair tied in a ponytail, wearing a black sports top, grey leggings and white sneakers, in a bright modern gym, softly blurred background with bokeh, seated in a chest press machine, back and shoulder blades pressed to the pad, hands on the handles at mid-chest level, elbows bent slightly behind the torso, side view.
+```
+
+**Кадр 2.** Конечное положение: руки выпрямлены вперёд
+
+👨 Мужчина — подпись `machine_press 2`
+
+```
+Photorealistic professional fitness photography, 4K, ultra detailed, shot on a full-frame camera with a 50mm lens, soft natural studio lighting, sharp focus, realistic skin texture and anatomy, correct exercise technique and accurate joint angles, full body in frame, the same model throughout the series, no text, no labels, no watermark, no logos, 4:3 aspect ratio. A male fitness model in his late 20s with an athletic, naturally muscular build, short hair, wearing a plain black t-shirt, grey shorts and white sneakers, in a bright modern gym, softly blurred background with bokeh, chest press machine, arms extended forward almost straight, chest contracted, back still against the pad, side view.
+```
+
+👩 Женщина — подпись `machine_press 2 f`
+
+```
+Photorealistic professional fitness photography, 4K, ultra detailed, shot on a full-frame camera with a 50mm lens, soft natural studio lighting, sharp focus, realistic skin texture and anatomy, correct exercise technique and accurate joint angles, full body in frame, the same model throughout the series, no text, no labels, no watermark, no logos, 4:3 aspect ratio. A female fitness model in her late 20s with a toned athletic build, hair tied in a ponytail, wearing a black sports top, grey leggings and white sneakers, in a bright modern gym, softly blurred background with bokeh, chest press machine, arms extended forward almost straight, chest contracted, back still against the pad, side view.
+```
+
+## Сведение рук в тренажёре «бабочка» (`pec_deck`)
+
+**Кадр 1.** Исходное положение: руки разведены, лёгкое растяжение груди
+
+👨 Мужчина — подпись `pec_deck 1`
+
+```
+Photorealistic professional fitness photography, 4K, ultra detailed, shot on a full-frame camera with a 50mm lens, soft natural studio lighting, sharp focus, realistic skin texture and anatomy, correct exercise technique and accurate joint angles, full body in frame, the same model throughout the series, no text, no labels, no watermark, no logos, 4:3 aspect ratio. A male fitness model in his late 20s with an athletic, naturally muscular build, short hair, wearing a plain black t-shirt, grey shorts and white sneakers, in a bright modern gym, softly blurred background with bokeh, seated in a pec deck machine, back against the pad, arms open wide to the sides holding the handles at chest height, elbows slightly bent, front view.
+```
+
+👩 Женщина — подпись `pec_deck 1 f`
+
+```
+Photorealistic professional fitness photography, 4K, ultra detailed, shot on a full-frame camera with a 50mm lens, soft natural studio lighting, sharp focus, realistic skin texture and anatomy, correct exercise technique and accurate joint angles, full body in frame, the same model throughout the series, no text, no labels, no watermark, no logos, 4:3 aspect ratio. A female fitness model in her late 20s with a toned athletic build, hair tied in a ponytail, wearing a black sports top, grey leggings and white sneakers, in a bright modern gym, softly blurred background with bokeh, seated in a pec deck machine, back against the pad, arms open wide to the sides holding the handles at chest height, elbows slightly bent, front view.
+```
+
+**Кадр 2.** Конечное положение: руки сведены перед грудью
+
+👨 Мужчина — подпись `pec_deck 2`
+
+```
+Photorealistic professional fitness photography, 4K, ultra detailed, shot on a full-frame camera with a 50mm lens, soft natural studio lighting, sharp focus, realistic skin texture and anatomy, correct exercise technique and accurate joint angles, full body in frame, the same model throughout the series, no text, no labels, no watermark, no logos, 4:3 aspect ratio. A male fitness model in his late 20s with an athletic, naturally muscular build, short hair, wearing a plain black t-shirt, grey shorts and white sneakers, in a bright modern gym, softly blurred background with bokeh, pec deck machine, handles brought together in front of the chest, chest muscles squeezed, elbows slightly bent, front view.
+```
+
+👩 Женщина — подпись `pec_deck 2 f`
+
+```
+Photorealistic professional fitness photography, 4K, ultra detailed, shot on a full-frame camera with a 50mm lens, soft natural studio lighting, sharp focus, realistic skin texture and anatomy, correct exercise technique and accurate joint angles, full body in frame, the same model throughout the series, no text, no labels, no watermark, no logos, 4:3 aspect ratio. A female fitness model in her late 20s with a toned athletic build, hair tied in a ponytail, wearing a black sports top, grey leggings and white sneakers, in a bright modern gym, softly blurred background with bokeh, pec deck machine, handles brought together in front of the chest, chest muscles squeezed, elbows slightly bent, front view.
+```
+
+## Жим гантелей лёжа (`db_bench`)
+
+**Кадр 1.** Исходное положение: гантели над грудью на прямых руках
+
+👨 Мужчина — подпись `db_bench 1`
+
+```
+Photorealistic professional fitness photography, 4K, ultra detailed, shot on a full-frame camera with a 50mm lens, soft natural studio lighting, sharp focus, realistic skin texture and anatomy, correct exercise technique and accurate joint angles, full body in frame, the same model throughout the series, no text, no labels, no watermark, no logos, 4:3 aspect ratio. A male fitness model in his late 20s with an athletic, naturally muscular build, short hair, wearing a plain black t-shirt, grey shorts and white sneakers, in a bright modern gym, softly blurred background with bokeh, lying on a flat bench, two dumbbells held above the chest with straight arms, palms facing forward, feet flat on the floor, side view.
+```
+
+👩 Женщина — подпись `db_bench 1 f`
+
+```
+Photorealistic professional fitness photography, 4K, ultra detailed, shot on a full-frame camera with a 50mm lens, soft natural studio lighting, sharp focus, realistic skin texture and anatomy, correct exercise technique and accurate joint angles, full body in frame, the same model throughout the series, no text, no labels, no watermark, no logos, 4:3 aspect ratio. A female fitness model in her late 20s with a toned athletic build, hair tied in a ponytail, wearing a black sports top, grey leggings and white sneakers, in a bright modern gym, softly blurred background with bokeh, lying on a flat bench, two dumbbells held above the chest with straight arms, palms facing forward, feet flat on the floor, side view.
+```
+
+**Кадр 2.** Нижняя точка: гантели по бокам груди
+
+👨 Мужчина — подпись `db_bench 2`
+
+```
+Photorealistic professional fitness photography, 4K, ultra detailed, shot on a full-frame camera with a 50mm lens, soft natural studio lighting, sharp focus, realistic skin texture and anatomy, correct exercise technique and accurate joint angles, full body in frame, the same model throughout the series, no text, no labels, no watermark, no logos, 4:3 aspect ratio. A male fitness model in his late 20s with an athletic, naturally muscular build, short hair, wearing a plain black t-shirt, grey shorts and white sneakers, in a bright modern gym, softly blurred background with bokeh, flat dumbbell bench press bottom, dumbbells lowered to the sides of the chest, elbows at 45 degrees, chest stretched, side view.
+```
+
+👩 Женщина — подпись `db_bench 2 f`
+
+```
+Photorealistic professional fitness photography, 4K, ultra detailed, shot on a full-frame camera with a 50mm lens, soft natural studio lighting, sharp focus, realistic skin texture and anatomy, correct exercise technique and accurate joint angles, full body in frame, the same model throughout the series, no text, no labels, no watermark, no logos, 4:3 aspect ratio. A female fitness model in her late 20s with a toned athletic build, hair tied in a ponytail, wearing a black sports top, grey leggings and white sneakers, in a bright modern gym, softly blurred background with bokeh, flat dumbbell bench press bottom, dumbbells lowered to the sides of the chest, elbows at 45 degrees, chest stretched, side view.
+```
+
+## Жим штанги на наклонной скамье (`incline_bench`)
+
+**Кадр 1.** Исходное положение: штанга над верхом груди
+
+👨 Мужчина — подпись `incline_bench 1`
+
+```
+Photorealistic professional fitness photography, 4K, ultra detailed, shot on a full-frame camera with a 50mm lens, soft natural studio lighting, sharp focus, realistic skin texture and anatomy, correct exercise technique and accurate joint angles, full body in frame, the same model throughout the series, no text, no labels, no watermark, no logos, 4:3 aspect ratio. A male fitness model in his late 20s with an athletic, naturally muscular build, short hair, wearing a plain black t-shirt, grey shorts and white sneakers, in a bright modern gym, softly blurred background with bokeh, lying on a bench inclined at 30 degrees, barbell held with straight arms above the upper chest, grip slightly wider than shoulders, feet on the floor, side view.
+```
+
+👩 Женщина — подпись `incline_bench 1 f`
+
+```
+Photorealistic professional fitness photography, 4K, ultra detailed, shot on a full-frame camera with a 50mm lens, soft natural studio lighting, sharp focus, realistic skin texture and anatomy, correct exercise technique and accurate joint angles, full body in frame, the same model throughout the series, no text, no labels, no watermark, no logos, 4:3 aspect ratio. A female fitness model in her late 20s with a toned athletic build, hair tied in a ponytail, wearing a black sports top, grey leggings and white sneakers, in a bright modern gym, softly blurred background with bokeh, lying on a bench inclined at 30 degrees, barbell held with straight arms above the upper chest, grip slightly wider than shoulders, feet on the floor, side view.
+```
+
+**Кадр 2.** Нижняя точка: гриф касается верха груди
+
+👨 Мужчина — подпись `incline_bench 2`
+
+```
+Photorealistic professional fitness photography, 4K, ultra detailed, shot on a full-frame camera with a 50mm lens, soft natural studio lighting, sharp focus, realistic skin texture and anatomy, correct exercise technique and accurate joint angles, full body in frame, the same model throughout the series, no text, no labels, no watermark, no logos, 4:3 aspect ratio. A male fitness model in his late 20s with an athletic, naturally muscular build, short hair, wearing a plain black t-shirt, grey shorts and white sneakers, in a bright modern gym, softly blurred background with bokeh, incline barbell bench press bottom, bar lowered to the upper chest, elbows at 45 degrees, shoulder blades squeezed, side view.
+```
+
+👩 Женщина — подпись `incline_bench 2 f`
+
+```
+Photorealistic professional fitness photography, 4K, ultra detailed, shot on a full-frame camera with a 50mm lens, soft natural studio lighting, sharp focus, realistic skin texture and anatomy, correct exercise technique and accurate joint angles, full body in frame, the same model throughout the series, no text, no labels, no watermark, no logos, 4:3 aspect ratio. A female fitness model in her late 20s with a toned athletic build, hair tied in a ponytail, wearing a black sports top, grey leggings and white sneakers, in a bright modern gym, softly blurred background with bokeh, incline barbell bench press bottom, bar lowered to the upper chest, elbows at 45 degrees, shoulder blades squeezed, side view.
+```
+
+## Жим лёжа в тренажёре Смита (`smith_bench`)
+
+**Кадр 1.** Исходное положение: гриф Смита над грудью
+
+👨 Мужчина — подпись `smith_bench 1`
+
+```
+Photorealistic professional fitness photography, 4K, ultra detailed, shot on a full-frame camera with a 50mm lens, soft natural studio lighting, sharp focus, realistic skin texture and anatomy, correct exercise technique and accurate joint angles, full body in frame, the same model throughout the series, no text, no labels, no watermark, no logos, 4:3 aspect ratio. A male fitness model in his late 20s with an athletic, naturally muscular build, short hair, wearing a plain black t-shirt, grey shorts and white sneakers, in a bright modern gym, softly blurred background with bokeh, lying on a flat bench inside a Smith machine, bar held with straight arms above the lower chest, shoulder blades squeezed, side view.
+```
+
+👩 Женщина — подпись `smith_bench 1 f`
+
+```
+Photorealistic professional fitness photography, 4K, ultra detailed, shot on a full-frame camera with a 50mm lens, soft natural studio lighting, sharp focus, realistic skin texture and anatomy, correct exercise technique and accurate joint angles, full body in frame, the same model throughout the series, no text, no labels, no watermark, no logos, 4:3 aspect ratio. A female fitness model in her late 20s with a toned athletic build, hair tied in a ponytail, wearing a black sports top, grey leggings and white sneakers, in a bright modern gym, softly blurred background with bokeh, lying on a flat bench inside a Smith machine, bar held with straight arms above the lower chest, shoulder blades squeezed, side view.
+```
+
+**Кадр 2.** Нижняя точка: гриф у низа груди
+
+👨 Мужчина — подпись `smith_bench 2`
+
+```
+Photorealistic professional fitness photography, 4K, ultra detailed, shot on a full-frame camera with a 50mm lens, soft natural studio lighting, sharp focus, realistic skin texture and anatomy, correct exercise technique and accurate joint angles, full body in frame, the same model throughout the series, no text, no labels, no watermark, no logos, 4:3 aspect ratio. A male fitness model in his late 20s with an athletic, naturally muscular build, short hair, wearing a plain black t-shirt, grey shorts and white sneakers, in a bright modern gym, softly blurred background with bokeh, Smith machine bench press bottom, bar lowered to the lower chest, elbows at 45 degrees, side view.
+```
+
+👩 Женщина — подпись `smith_bench 2 f`
+
+```
+Photorealistic professional fitness photography, 4K, ultra detailed, shot on a full-frame camera with a 50mm lens, soft natural studio lighting, sharp focus, realistic skin texture and anatomy, correct exercise technique and accurate joint angles, full body in frame, the same model throughout the series, no text, no labels, no watermark, no logos, 4:3 aspect ratio. A female fitness model in her late 20s with a toned athletic build, hair tied in a ponytail, wearing a black sports top, grey leggings and white sneakers, in a bright modern gym, softly blurred background with bokeh, Smith machine bench press bottom, bar lowered to the lower chest, elbows at 45 degrees, side view.
+```
+
+## Отжимания от опоры (стол, диван) (`pushup_incline`)
+
+**Кадр 1.** Исходное положение: руки на краю стола, тело прямое
+
+👨 Мужчина — подпись `pushup_incline 1`
+
+```
+Photorealistic professional fitness photography, 4K, ultra detailed, shot on a full-frame camera with a 50mm lens, soft natural studio lighting, sharp focus, realistic skin texture and anatomy, correct exercise technique and accurate joint angles, full body in frame, the same model throughout the series, no text, no labels, no watermark, no logos, 4:3 aspect ratio. A male fitness model in his late 20s with an athletic, naturally muscular build, short hair, wearing a plain black t-shirt, grey shorts and white sneakers, in a bright modern living room with a yoga mat on the floor, softly blurred background, incline push-up start, hands on the edge of a sturdy table, arms straight, body in a straight line from head to heels, side view.
+```
+
+👩 Женщина — подпись `pushup_incline 1 f`
+
+```
+Photorealistic professional fitness photography, 4K, ultra detailed, shot on a full-frame camera with a 50mm lens, soft natural studio lighting, sharp focus, realistic skin texture and anatomy, correct exercise technique and accurate joint angles, full body in frame, the same model throughout the series, no text, no labels, no watermark, no logos, 4:3 aspect ratio. A female fitness model in her late 20s with a toned athletic build, hair tied in a ponytail, wearing a black sports top, grey leggings and white sneakers, in a bright modern living room with a yoga mat on the floor, softly blurred background, incline push-up start, hands on the edge of a sturdy table, arms straight, body in a straight line from head to heels, side view.
+```
+
+**Кадр 2.** Нижняя точка: грудь у края стола
+
+👨 Мужчина — подпись `pushup_incline 2`
+
+```
+Photorealistic professional fitness photography, 4K, ultra detailed, shot on a full-frame camera with a 50mm lens, soft natural studio lighting, sharp focus, realistic skin texture and anatomy, correct exercise technique and accurate joint angles, full body in frame, the same model throughout the series, no text, no labels, no watermark, no logos, 4:3 aspect ratio. A male fitness model in his late 20s with an athletic, naturally muscular build, short hair, wearing a plain black t-shirt, grey shorts and white sneakers, in a bright modern living room with a yoga mat on the floor, softly blurred background, incline push-up bottom, chest lowered close to the table edge, elbows bent at 45 degrees, body straight, side view.
+```
+
+👩 Женщина — подпись `pushup_incline 2 f`
+
+```
+Photorealistic professional fitness photography, 4K, ultra detailed, shot on a full-frame camera with a 50mm lens, soft natural studio lighting, sharp focus, realistic skin texture and anatomy, correct exercise technique and accurate joint angles, full body in frame, the same model throughout the series, no text, no labels, no watermark, no logos, 4:3 aspect ratio. A female fitness model in her late 20s with a toned athletic build, hair tied in a ponytail, wearing a black sports top, grey leggings and white sneakers, in a bright modern living room with a yoga mat on the floor, softly blurred background, incline push-up bottom, chest lowered close to the table edge, elbows bent at 45 degrees, body straight, side view.
+```
+
+## Тяга Т-грифа (`tbar_row`)
+
+**Кадр 1.** Исходное положение: наклон, спина прямая, руки прямые
+
+👨 Мужчина — подпись `tbar_row 1`
+
+```
+Photorealistic professional fitness photography, 4K, ultra detailed, shot on a full-frame camera with a 50mm lens, soft natural studio lighting, sharp focus, realistic skin texture and anatomy, correct exercise technique and accurate joint angles, full body in frame, the same model throughout the series, no text, no labels, no watermark, no logos, 4:3 aspect ratio. A male fitness model in his late 20s with an athletic, naturally muscular build, short hair, wearing a plain black t-shirt, grey shorts and white sneakers, in a bright modern gym, softly blurred background with bokeh, T-bar row start, standing over the bar with knees bent, torso hinged forward at 45 degrees, flat back, arms straight holding the handle, side view.
+```
+
+👩 Женщина — подпись `tbar_row 1 f`
+
+```
+Photorealistic professional fitness photography, 4K, ultra detailed, shot on a full-frame camera with a 50mm lens, soft natural studio lighting, sharp focus, realistic skin texture and anatomy, correct exercise technique and accurate joint angles, full body in frame, the same model throughout the series, no text, no labels, no watermark, no logos, 4:3 aspect ratio. A female fitness model in her late 20s with a toned athletic build, hair tied in a ponytail, wearing a black sports top, grey leggings and white sneakers, in a bright modern gym, softly blurred background with bokeh, T-bar row start, standing over the bar with knees bent, torso hinged forward at 45 degrees, flat back, arms straight holding the handle, side view.
+```
+
+**Кадр 2.** Конечное положение: гриф у низа груди
+
+👨 Мужчина — подпись `tbar_row 2`
+
+```
+Photorealistic professional fitness photography, 4K, ultra detailed, shot on a full-frame camera with a 50mm lens, soft natural studio lighting, sharp focus, realistic skin texture and anatomy, correct exercise technique and accurate joint angles, full body in frame, the same model throughout the series, no text, no labels, no watermark, no logos, 4:3 aspect ratio. A male fitness model in his late 20s with an athletic, naturally muscular build, short hair, wearing a plain black t-shirt, grey shorts and white sneakers, in a bright modern gym, softly blurred background with bokeh, T-bar row top, handle pulled to the lower chest, elbows behind the torso, shoulder blades squeezed, flat back, side view.
+```
+
+👩 Женщина — подпись `tbar_row 2 f`
+
+```
+Photorealistic professional fitness photography, 4K, ultra detailed, shot on a full-frame camera with a 50mm lens, soft natural studio lighting, sharp focus, realistic skin texture and anatomy, correct exercise technique and accurate joint angles, full body in frame, the same model throughout the series, no text, no labels, no watermark, no logos, 4:3 aspect ratio. A female fitness model in her late 20s with a toned athletic build, hair tied in a ponytail, wearing a black sports top, grey leggings and white sneakers, in a bright modern gym, softly blurred background with bokeh, T-bar row top, handle pulled to the lower chest, elbows behind the torso, shoulder blades squeezed, flat back, side view.
+```
+
+## Тяга в рычажном тренажёре (`machine_row`)
+
+**Кадр 1.** Исходное положение: руки вытянуты, грудь у упора
+
+👨 Мужчина — подпись `machine_row 1`
+
+```
+Photorealistic professional fitness photography, 4K, ultra detailed, shot on a full-frame camera with a 50mm lens, soft natural studio lighting, sharp focus, realistic skin texture and anatomy, correct exercise technique and accurate joint angles, full body in frame, the same model throughout the series, no text, no labels, no watermark, no logos, 4:3 aspect ratio. A male fitness model in his late 20s with an athletic, naturally muscular build, short hair, wearing a plain black t-shirt, grey shorts and white sneakers, in a bright modern gym, softly blurred background with bokeh, seated in a chest-supported row machine, chest against the pad, arms extended holding the handles, side view.
+```
+
+👩 Женщина — подпись `machine_row 1 f`
+
+```
+Photorealistic professional fitness photography, 4K, ultra detailed, shot on a full-frame camera with a 50mm lens, soft natural studio lighting, sharp focus, realistic skin texture and anatomy, correct exercise technique and accurate joint angles, full body in frame, the same model throughout the series, no text, no labels, no watermark, no logos, 4:3 aspect ratio. A female fitness model in her late 20s with a toned athletic build, hair tied in a ponytail, wearing a black sports top, grey leggings and white sneakers, in a bright modern gym, softly blurred background with bokeh, seated in a chest-supported row machine, chest against the pad, arms extended holding the handles, side view.
+```
+
+**Кадр 2.** Конечное положение: рукояти подтянуты, лопатки сведены
+
+👨 Мужчина — подпись `machine_row 2`
+
+```
+Photorealistic professional fitness photography, 4K, ultra detailed, shot on a full-frame camera with a 50mm lens, soft natural studio lighting, sharp focus, realistic skin texture and anatomy, correct exercise technique and accurate joint angles, full body in frame, the same model throughout the series, no text, no labels, no watermark, no logos, 4:3 aspect ratio. A male fitness model in his late 20s with an athletic, naturally muscular build, short hair, wearing a plain black t-shirt, grey shorts and white sneakers, in a bright modern gym, softly blurred background with bokeh, chest-supported machine row, handles pulled back, elbows behind the torso, shoulder blades squeezed, side view.
+```
+
+👩 Женщина — подпись `machine_row 2 f`
+
+```
+Photorealistic professional fitness photography, 4K, ultra detailed, shot on a full-frame camera with a 50mm lens, soft natural studio lighting, sharp focus, realistic skin texture and anatomy, correct exercise technique and accurate joint angles, full body in frame, the same model throughout the series, no text, no labels, no watermark, no logos, 4:3 aspect ratio. A female fitness model in her late 20s with a toned athletic build, hair tied in a ponytail, wearing a black sports top, grey leggings and white sneakers, in a bright modern gym, softly blurred background with bokeh, chest-supported machine row, handles pulled back, elbows behind the torso, shoulder blades squeezed, side view.
+```
+
+## Гиперэкстензия (`hyperext`)
+
+**Кадр 1.** Нижняя точка: наклон вниз, спина прямая
+
+👨 Мужчина — подпись `hyperext 1`
+
+```
+Photorealistic professional fitness photography, 4K, ultra detailed, shot on a full-frame camera with a 50mm lens, soft natural studio lighting, sharp focus, realistic skin texture and anatomy, correct exercise technique and accurate joint angles, full body in frame, the same model throughout the series, no text, no labels, no watermark, no logos, 4:3 aspect ratio. A male fitness model in his late 20s with an athletic, naturally muscular build, short hair, wearing a plain black t-shirt, grey shorts and white sneakers, in a bright modern gym, softly blurred background with bokeh, hyperextension bench, hips on the pad, heels under the rollers, torso bent down toward the floor, arms crossed on the chest, flat back, side view.
+```
+
+👩 Женщина — подпись `hyperext 1 f`
+
+```
+Photorealistic professional fitness photography, 4K, ultra detailed, shot on a full-frame camera with a 50mm lens, soft natural studio lighting, sharp focus, realistic skin texture and anatomy, correct exercise technique and accurate joint angles, full body in frame, the same model throughout the series, no text, no labels, no watermark, no logos, 4:3 aspect ratio. A female fitness model in her late 20s with a toned athletic build, hair tied in a ponytail, wearing a black sports top, grey leggings and white sneakers, in a bright modern gym, softly blurred background with bokeh, hyperextension bench, hips on the pad, heels under the rollers, torso bent down toward the floor, arms crossed on the chest, flat back, side view.
+```
+
+**Кадр 2.** Верхняя точка: тело — прямая линия
+
+👨 Мужчина — подпись `hyperext 2`
+
+```
+Photorealistic professional fitness photography, 4K, ultra detailed, shot on a full-frame camera with a 50mm lens, soft natural studio lighting, sharp focus, realistic skin texture and anatomy, correct exercise technique and accurate joint angles, full body in frame, the same model throughout the series, no text, no labels, no watermark, no logos, 4:3 aspect ratio. A male fitness model in his late 20s with an athletic, naturally muscular build, short hair, wearing a plain black t-shirt, grey shorts and white sneakers, in a bright modern gym, softly blurred background with bokeh, hyperextension top, torso raised so the body forms a straight line, glutes squeezed, no overextension, side view.
+```
+
+👩 Женщина — подпись `hyperext 2 f`
+
+```
+Photorealistic professional fitness photography, 4K, ultra detailed, shot on a full-frame camera with a 50mm lens, soft natural studio lighting, sharp focus, realistic skin texture and anatomy, correct exercise technique and accurate joint angles, full body in frame, the same model throughout the series, no text, no labels, no watermark, no logos, 4:3 aspect ratio. A female fitness model in her late 20s with a toned athletic build, hair tied in a ponytail, wearing a black sports top, grey leggings and white sneakers, in a bright modern gym, softly blurred background with bokeh, hyperextension top, torso raised so the body forms a straight line, glutes squeezed, no overextension, side view.
+```
+
+## Пуловер на верхнем блоке прямыми руками (`straight_pulldown`)
+
+**Кадр 1.** Исходное положение: руки вытянуты вверх-вперёд
+
+👨 Мужчина — подпись `straight_pulldown 1`
+
+```
+Photorealistic professional fitness photography, 4K, ultra detailed, shot on a full-frame camera with a 50mm lens, soft natural studio lighting, sharp focus, realistic skin texture and anatomy, correct exercise technique and accurate joint angles, full body in frame, the same model throughout the series, no text, no labels, no watermark, no logos, 4:3 aspect ratio. A male fitness model in his late 20s with an athletic, naturally muscular build, short hair, wearing a plain black t-shirt, grey shorts and white sneakers, in a bright modern gym, softly blurred background with bokeh, standing facing a high cable pulley, slight forward lean, arms almost straight reaching up and forward holding a straight bar, side view.
+```
+
+👩 Женщина — подпись `straight_pulldown 1 f`
+
+```
+Photorealistic professional fitness photography, 4K, ultra detailed, shot on a full-frame camera with a 50mm lens, soft natural studio lighting, sharp focus, realistic skin texture and anatomy, correct exercise technique and accurate joint angles, full body in frame, the same model throughout the series, no text, no labels, no watermark, no logos, 4:3 aspect ratio. A female fitness model in her late 20s with a toned athletic build, hair tied in a ponytail, wearing a black sports top, grey leggings and white sneakers, in a bright modern gym, softly blurred background with bokeh, standing facing a high cable pulley, slight forward lean, arms almost straight reaching up and forward holding a straight bar, side view.
+```
+
+**Кадр 2.** Конечное положение: рукоять у бёдер
+
+👨 Мужчина — подпись `straight_pulldown 2`
+
+```
+Photorealistic professional fitness photography, 4K, ultra detailed, shot on a full-frame camera with a 50mm lens, soft natural studio lighting, sharp focus, realistic skin texture and anatomy, correct exercise technique and accurate joint angles, full body in frame, the same model throughout the series, no text, no labels, no watermark, no logos, 4:3 aspect ratio. A male fitness model in his late 20s with an athletic, naturally muscular build, short hair, wearing a plain black t-shirt, grey shorts and white sneakers, in a bright modern gym, softly blurred background with bokeh, straight-arm cable pulldown, bar pulled down in an arc to the thighs, arms still almost straight, lats contracted, side view.
+```
+
+👩 Женщина — подпись `straight_pulldown 2 f`
+
+```
+Photorealistic professional fitness photography, 4K, ultra detailed, shot on a full-frame camera with a 50mm lens, soft natural studio lighting, sharp focus, realistic skin texture and anatomy, correct exercise technique and accurate joint angles, full body in frame, the same model throughout the series, no text, no labels, no watermark, no logos, 4:3 aspect ratio. A female fitness model in her late 20s with a toned athletic build, hair tied in a ponytail, wearing a black sports top, grey leggings and white sneakers, in a bright modern gym, softly blurred background with bokeh, straight-arm cable pulldown, bar pulled down in an arc to the thighs, arms still almost straight, lats contracted, side view.
+```
+
+## Жим вверх в тренажёре (`machine_shoulder`)
+
+**Кадр 1.** Исходное положение: рукояти на уровне плеч
+
+👨 Мужчина — подпись `machine_shoulder 1`
+
+```
+Photorealistic professional fitness photography, 4K, ultra detailed, shot on a full-frame camera with a 50mm lens, soft natural studio lighting, sharp focus, realistic skin texture and anatomy, correct exercise technique and accurate joint angles, full body in frame, the same model throughout the series, no text, no labels, no watermark, no logos, 4:3 aspect ratio. A male fitness model in his late 20s with an athletic, naturally muscular build, short hair, wearing a plain black t-shirt, grey shorts and white sneakers, in a bright modern gym, softly blurred background with bokeh, seated in a shoulder press machine, back against the pad, handles at shoulder height, elbows under the wrists, front three-quarter view.
+```
+
+👩 Женщина — подпись `machine_shoulder 1 f`
+
+```
+Photorealistic professional fitness photography, 4K, ultra detailed, shot on a full-frame camera with a 50mm lens, soft natural studio lighting, sharp focus, realistic skin texture and anatomy, correct exercise technique and accurate joint angles, full body in frame, the same model throughout the series, no text, no labels, no watermark, no logos, 4:3 aspect ratio. A female fitness model in her late 20s with a toned athletic build, hair tied in a ponytail, wearing a black sports top, grey leggings and white sneakers, in a bright modern gym, softly blurred background with bokeh, seated in a shoulder press machine, back against the pad, handles at shoulder height, elbows under the wrists, front three-quarter view.
+```
+
+**Кадр 2.** Верхняя точка: руки выпрямлены вверх
+
+👨 Мужчина — подпись `machine_shoulder 2`
+
+```
+Photorealistic professional fitness photography, 4K, ultra detailed, shot on a full-frame camera with a 50mm lens, soft natural studio lighting, sharp focus, realistic skin texture and anatomy, correct exercise technique and accurate joint angles, full body in frame, the same model throughout the series, no text, no labels, no watermark, no logos, 4:3 aspect ratio. A male fitness model in his late 20s with an athletic, naturally muscular build, short hair, wearing a plain black t-shirt, grey shorts and white sneakers, in a bright modern gym, softly blurred background with bokeh, shoulder press machine top, arms extended overhead, back still against the pad, front three-quarter view.
+```
+
+👩 Женщина — подпись `machine_shoulder 2 f`
+
+```
+Photorealistic professional fitness photography, 4K, ultra detailed, shot on a full-frame camera with a 50mm lens, soft natural studio lighting, sharp focus, realistic skin texture and anatomy, correct exercise technique and accurate joint angles, full body in frame, the same model throughout the series, no text, no labels, no watermark, no logos, 4:3 aspect ratio. A female fitness model in her late 20s with a toned athletic build, hair tied in a ponytail, wearing a black sports top, grey leggings and white sneakers, in a bright modern gym, softly blurred background with bokeh, shoulder press machine top, arms extended overhead, back still against the pad, front three-quarter view.
+```
+
+## Отведение руки в сторону на нижнем блоке (`cable_lateral`)
+
+**Кадр 1.** Исходное положение: рука опущена, рукоять у бедра
+
+👨 Мужчина — подпись `cable_lateral 1`
+
+```
+Photorealistic professional fitness photography, 4K, ultra detailed, shot on a full-frame camera with a 50mm lens, soft natural studio lighting, sharp focus, realistic skin texture and anatomy, correct exercise technique and accurate joint angles, full body in frame, the same model throughout the series, no text, no labels, no watermark, no logos, 4:3 aspect ratio. A male fitness model in his late 20s with an athletic, naturally muscular build, short hair, wearing a plain black t-shirt, grey shorts and white sneakers, in a bright modern gym, softly blurred background with bokeh, standing sideways to a low cable pulley, holding the handle with the far hand in front of the hips, elbow slightly bent, front view.
+```
+
+👩 Женщина — подпись `cable_lateral 1 f`
+
+```
+Photorealistic professional fitness photography, 4K, ultra detailed, shot on a full-frame camera with a 50mm lens, soft natural studio lighting, sharp focus, realistic skin texture and anatomy, correct exercise technique and accurate joint angles, full body in frame, the same model throughout the series, no text, no labels, no watermark, no logos, 4:3 aspect ratio. A female fitness model in her late 20s with a toned athletic build, hair tied in a ponytail, wearing a black sports top, grey leggings and white sneakers, in a bright modern gym, softly blurred background with bokeh, standing sideways to a low cable pulley, holding the handle with the far hand in front of the hips, elbow slightly bent, front view.
+```
+
+**Кадр 2.** Верхняя точка: рука на уровне плеча
+
+👨 Мужчина — подпись `cable_lateral 2`
+
+```
+Photorealistic professional fitness photography, 4K, ultra detailed, shot on a full-frame camera with a 50mm lens, soft natural studio lighting, sharp focus, realistic skin texture and anatomy, correct exercise technique and accurate joint angles, full body in frame, the same model throughout the series, no text, no labels, no watermark, no logos, 4:3 aspect ratio. A male fitness model in his late 20s with an athletic, naturally muscular build, short hair, wearing a plain black t-shirt, grey shorts and white sneakers, in a bright modern gym, softly blurred background with bokeh, cable lateral raise top, arm raised out to the side to shoulder height, torso upright, front view.
+```
+
+👩 Женщина — подпись `cable_lateral 2 f`
+
+```
+Photorealistic professional fitness photography, 4K, ultra detailed, shot on a full-frame camera with a 50mm lens, soft natural studio lighting, sharp focus, realistic skin texture and anatomy, correct exercise technique and accurate joint angles, full body in frame, the same model throughout the series, no text, no labels, no watermark, no logos, 4:3 aspect ratio. A female fitness model in her late 20s with a toned athletic build, hair tied in a ponytail, wearing a black sports top, grey leggings and white sneakers, in a bright modern gym, softly blurred background with bokeh, cable lateral raise top, arm raised out to the side to shoulder height, torso upright, front view.
+```
+
+## Тяга каната к лицу (`face_pull`)
+
+**Кадр 1.** Исходное положение: руки вытянуты к блоку
+
+👨 Мужчина — подпись `face_pull 1`
+
+```
+Photorealistic professional fitness photography, 4K, ultra detailed, shot on a full-frame camera with a 50mm lens, soft natural studio lighting, sharp focus, realistic skin texture and anatomy, correct exercise technique and accurate joint angles, full body in frame, the same model throughout the series, no text, no labels, no watermark, no logos, 4:3 aspect ratio. A male fitness model in his late 20s with an athletic, naturally muscular build, short hair, wearing a plain black t-shirt, grey shorts and white sneakers, in a bright modern gym, softly blurred background with bokeh, standing facing a cable pulley at face height, holding a rope attachment with arms extended forward, side view.
+```
+
+👩 Женщина — подпись `face_pull 1 f`
+
+```
+Photorealistic professional fitness photography, 4K, ultra detailed, shot on a full-frame camera with a 50mm lens, soft natural studio lighting, sharp focus, realistic skin texture and anatomy, correct exercise technique and accurate joint angles, full body in frame, the same model throughout the series, no text, no labels, no watermark, no logos, 4:3 aspect ratio. A female fitness model in her late 20s with a toned athletic build, hair tied in a ponytail, wearing a black sports top, grey leggings and white sneakers, in a bright modern gym, softly blurred background with bokeh, standing facing a cable pulley at face height, holding a rope attachment with arms extended forward, side view.
+```
+
+**Кадр 2.** Конечное положение: канат у лица, локти высоко
+
+👨 Мужчина — подпись `face_pull 2`
+
+```
+Photorealistic professional fitness photography, 4K, ultra detailed, shot on a full-frame camera with a 50mm lens, soft natural studio lighting, sharp focus, realistic skin texture and anatomy, correct exercise technique and accurate joint angles, full body in frame, the same model throughout the series, no text, no labels, no watermark, no logos, 4:3 aspect ratio. A male fitness model in his late 20s with an athletic, naturally muscular build, short hair, wearing a plain black t-shirt, grey shorts and white sneakers, in a bright modern gym, softly blurred background with bokeh, face pull end position, rope pulled to the face with ends spread apart, elbows high, shoulder blades squeezed, side view.
+```
+
+👩 Женщина — подпись `face_pull 2 f`
+
+```
+Photorealistic professional fitness photography, 4K, ultra detailed, shot on a full-frame camera with a 50mm lens, soft natural studio lighting, sharp focus, realistic skin texture and anatomy, correct exercise technique and accurate joint angles, full body in frame, the same model throughout the series, no text, no labels, no watermark, no logos, 4:3 aspect ratio. A female fitness model in her late 20s with a toned athletic build, hair tied in a ponytail, wearing a black sports top, grey leggings and white sneakers, in a bright modern gym, softly blurred background with bokeh, face pull end position, rope pulled to the face with ends spread apart, elbows high, shoulder blades squeezed, side view.
+```
+
+## Обратная «бабочка» (задняя дельта) (`reverse_fly_machine`)
+
+**Кадр 1.** Исходное положение: руки перед собой
+
+👨 Мужчина — подпись `reverse_fly_machine 1`
+
+```
+Photorealistic professional fitness photography, 4K, ultra detailed, shot on a full-frame camera with a 50mm lens, soft natural studio lighting, sharp focus, realistic skin texture and anatomy, correct exercise technique and accurate joint angles, full body in frame, the same model throughout the series, no text, no labels, no watermark, no logos, 4:3 aspect ratio. A male fitness model in his late 20s with an athletic, naturally muscular build, short hair, wearing a plain black t-shirt, grey shorts and white sneakers, in a bright modern gym, softly blurred background with bokeh, seated facing the pad of a reverse pec deck machine, chest against the pad, arms extended forward holding the handles, top-down three-quarter view.
+```
+
+👩 Женщина — подпись `reverse_fly_machine 1 f`
+
+```
+Photorealistic professional fitness photography, 4K, ultra detailed, shot on a full-frame camera with a 50mm lens, soft natural studio lighting, sharp focus, realistic skin texture and anatomy, correct exercise technique and accurate joint angles, full body in frame, the same model throughout the series, no text, no labels, no watermark, no logos, 4:3 aspect ratio. A female fitness model in her late 20s with a toned athletic build, hair tied in a ponytail, wearing a black sports top, grey leggings and white sneakers, in a bright modern gym, softly blurred background with bokeh, seated facing the pad of a reverse pec deck machine, chest against the pad, arms extended forward holding the handles, top-down three-quarter view.
+```
+
+**Кадр 2.** Конечное положение: руки разведены в стороны
+
+👨 Мужчина — подпись `reverse_fly_machine 2`
+
+```
+Photorealistic professional fitness photography, 4K, ultra detailed, shot on a full-frame camera with a 50mm lens, soft natural studio lighting, sharp focus, realistic skin texture and anatomy, correct exercise technique and accurate joint angles, full body in frame, the same model throughout the series, no text, no labels, no watermark, no logos, 4:3 aspect ratio. A male fitness model in his late 20s with an athletic, naturally muscular build, short hair, wearing a plain black t-shirt, grey shorts and white sneakers, in a bright modern gym, softly blurred background with bokeh, reverse pec deck end position, arms spread wide out to the sides at shoulder height, rear delts contracted, top-down three-quarter view.
+```
+
+👩 Женщина — подпись `reverse_fly_machine 2 f`
+
+```
+Photorealistic professional fitness photography, 4K, ultra detailed, shot on a full-frame camera with a 50mm lens, soft natural studio lighting, sharp focus, realistic skin texture and anatomy, correct exercise technique and accurate joint angles, full body in frame, the same model throughout the series, no text, no labels, no watermark, no logos, 4:3 aspect ratio. A female fitness model in her late 20s with a toned athletic build, hair tied in a ponytail, wearing a black sports top, grey leggings and white sneakers, in a bright modern gym, softly blurred background with bokeh, reverse pec deck end position, arms spread wide out to the sides at shoulder height, rear delts contracted, top-down three-quarter view.
+```
+
+## Гакк-приседания в тренажёре (`hack_squat`)
+
+**Кадр 1.** Исходное положение: ноги почти прямые, спина прижата
+
+👨 Мужчина — подпись `hack_squat 1`
+
+```
+Photorealistic professional fitness photography, 4K, ultra detailed, shot on a full-frame camera with a 50mm lens, soft natural studio lighting, sharp focus, realistic skin texture and anatomy, correct exercise technique and accurate joint angles, full body in frame, the same model throughout the series, no text, no labels, no watermark, no logos, 4:3 aspect ratio. A male fitness model in his late 20s with an athletic, naturally muscular build, short hair, wearing a plain black t-shirt, grey shorts and white sneakers, in a bright modern gym, softly blurred background with bokeh, standing in a hack squat machine, shoulders under the pads, back against the backrest, feet shoulder-width on the platform, legs almost straight, side view.
+```
+
+👩 Женщина — подпись `hack_squat 1 f`
+
+```
+Photorealistic professional fitness photography, 4K, ultra detailed, shot on a full-frame camera with a 50mm lens, soft natural studio lighting, sharp focus, realistic skin texture and anatomy, correct exercise technique and accurate joint angles, full body in frame, the same model throughout the series, no text, no labels, no watermark, no logos, 4:3 aspect ratio. A female fitness model in her late 20s with a toned athletic build, hair tied in a ponytail, wearing a black sports top, grey leggings and white sneakers, in a bright modern gym, softly blurred background with bokeh, standing in a hack squat machine, shoulders under the pads, back against the backrest, feet shoulder-width on the platform, legs almost straight, side view.
+```
+
+**Кадр 2.** Нижняя точка: колени согнуты ~90°
+
+👨 Мужчина — подпись `hack_squat 2`
+
+```
+Photorealistic professional fitness photography, 4K, ultra detailed, shot on a full-frame camera with a 50mm lens, soft natural studio lighting, sharp focus, realistic skin texture and anatomy, correct exercise technique and accurate joint angles, full body in frame, the same model throughout the series, no text, no labels, no watermark, no logos, 4:3 aspect ratio. A male fitness model in his late 20s with an athletic, naturally muscular build, short hair, wearing a plain black t-shirt, grey shorts and white sneakers, in a bright modern gym, softly blurred background with bokeh, hack squat bottom, knees bent to about 90 degrees or deeper, back against the backrest, heels on the platform, side view.
+```
+
+👩 Женщина — подпись `hack_squat 2 f`
+
+```
+Photorealistic professional fitness photography, 4K, ultra detailed, shot on a full-frame camera with a 50mm lens, soft natural studio lighting, sharp focus, realistic skin texture and anatomy, correct exercise technique and accurate joint angles, full body in frame, the same model throughout the series, no text, no labels, no watermark, no logos, 4:3 aspect ratio. A female fitness model in her late 20s with a toned athletic build, hair tied in a ponytail, wearing a black sports top, grey leggings and white sneakers, in a bright modern gym, softly blurred background with bokeh, hack squat bottom, knees bent to about 90 degrees or deeper, back against the backrest, heels on the platform, side view.
+```
+
+## Гоблет-приседания с гантелей (`goblet_squat`)
+
+**Кадр 1.** Исходное положение: гантель у груди
+
+👨 Мужчина — подпись `goblet_squat 1`
+
+```
+Photorealistic professional fitness photography, 4K, ultra detailed, shot on a full-frame camera with a 50mm lens, soft natural studio lighting, sharp focus, realistic skin texture and anatomy, correct exercise technique and accurate joint angles, full body in frame, the same model throughout the series, no text, no labels, no watermark, no logos, 4:3 aspect ratio. A male fitness model in his late 20s with an athletic, naturally muscular build, short hair, wearing a plain black t-shirt, grey shorts and white sneakers, in a bright modern gym, softly blurred background with bokeh, standing with feet slightly wider than shoulders, holding one dumbbell vertically at the chest with both hands, side view.
+```
+
+👩 Женщина — подпись `goblet_squat 1 f`
+
+```
+Photorealistic professional fitness photography, 4K, ultra detailed, shot on a full-frame camera with a 50mm lens, soft natural studio lighting, sharp focus, realistic skin texture and anatomy, correct exercise technique and accurate joint angles, full body in frame, the same model throughout the series, no text, no labels, no watermark, no logos, 4:3 aspect ratio. A female fitness model in her late 20s with a toned athletic build, hair tied in a ponytail, wearing a black sports top, grey leggings and white sneakers, in a bright modern gym, softly blurred background with bokeh, standing with feet slightly wider than shoulders, holding one dumbbell vertically at the chest with both hands, side view.
+```
+
+**Кадр 2.** Нижняя точка: глубокий присед, корпус прямой
+
+👨 Мужчина — подпись `goblet_squat 2`
+
+```
+Photorealistic professional fitness photography, 4K, ultra detailed, shot on a full-frame camera with a 50mm lens, soft natural studio lighting, sharp focus, realistic skin texture and anatomy, correct exercise technique and accurate joint angles, full body in frame, the same model throughout the series, no text, no labels, no watermark, no logos, 4:3 aspect ratio. A male fitness model in his late 20s with an athletic, naturally muscular build, short hair, wearing a plain black t-shirt, grey shorts and white sneakers, in a bright modern gym, softly blurred background with bokeh, goblet squat bottom, deep squat with upright torso, elbows between the knees, heels flat, side view.
+```
+
+👩 Женщина — подпись `goblet_squat 2 f`
+
+```
+Photorealistic professional fitness photography, 4K, ultra detailed, shot on a full-frame camera with a 50mm lens, soft natural studio lighting, sharp focus, realistic skin texture and anatomy, correct exercise technique and accurate joint angles, full body in frame, the same model throughout the series, no text, no labels, no watermark, no logos, 4:3 aspect ratio. A female fitness model in her late 20s with a toned athletic build, hair tied in a ponytail, wearing a black sports top, grey leggings and white sneakers, in a bright modern gym, softly blurred background with bokeh, goblet squat bottom, deep squat with upright torso, elbows between the knees, heels flat, side view.
+```
+
+## Приседания в тренажёре Смита (`smith_squat`)
+
+**Кадр 1.** Исходное положение: гриф Смита на плечах
+
+👨 Мужчина — подпись `smith_squat 1`
+
+```
+Photorealistic professional fitness photography, 4K, ultra detailed, shot on a full-frame camera with a 50mm lens, soft natural studio lighting, sharp focus, realistic skin texture and anatomy, correct exercise technique and accurate joint angles, full body in frame, the same model throughout the series, no text, no labels, no watermark, no logos, 4:3 aspect ratio. A male fitness model in his late 20s with an athletic, naturally muscular build, short hair, wearing a plain black t-shirt, grey shorts and white sneakers, in a bright modern gym, softly blurred background with bokeh, standing in a Smith machine, bar resting on the upper back, feet shoulder-width slightly in front of the bar, side view.
+```
+
+👩 Женщина — подпись `smith_squat 1 f`
+
+```
+Photorealistic professional fitness photography, 4K, ultra detailed, shot on a full-frame camera with a 50mm lens, soft natural studio lighting, sharp focus, realistic skin texture and anatomy, correct exercise technique and accurate joint angles, full body in frame, the same model throughout the series, no text, no labels, no watermark, no logos, 4:3 aspect ratio. A female fitness model in her late 20s with a toned athletic build, hair tied in a ponytail, wearing a black sports top, grey leggings and white sneakers, in a bright modern gym, softly blurred background with bokeh, standing in a Smith machine, bar resting on the upper back, feet shoulder-width slightly in front of the bar, side view.
+```
+
+**Кадр 2.** Нижняя точка: бёдра параллельно полу
+
+👨 Мужчина — подпись `smith_squat 2`
+
+```
+Photorealistic professional fitness photography, 4K, ultra detailed, shot on a full-frame camera with a 50mm lens, soft natural studio lighting, sharp focus, realistic skin texture and anatomy, correct exercise technique and accurate joint angles, full body in frame, the same model throughout the series, no text, no labels, no watermark, no logos, 4:3 aspect ratio. A male fitness model in his late 20s with an athletic, naturally muscular build, short hair, wearing a plain black t-shirt, grey shorts and white sneakers, in a bright modern gym, softly blurred background with bokeh, Smith machine squat bottom, thighs parallel to the floor, back straight, heels flat, side view.
+```
+
+👩 Женщина — подпись `smith_squat 2 f`
+
+```
+Photorealistic professional fitness photography, 4K, ultra detailed, shot on a full-frame camera with a 50mm lens, soft natural studio lighting, sharp focus, realistic skin texture and anatomy, correct exercise technique and accurate joint angles, full body in frame, the same model throughout the series, no text, no labels, no watermark, no logos, 4:3 aspect ratio. A female fitness model in her late 20s with a toned athletic build, hair tied in a ponytail, wearing a black sports top, grey leggings and white sneakers, in a bright modern gym, softly blurred background with bokeh, Smith machine squat bottom, thighs parallel to the floor, back straight, heels flat, side view.
+```
+
+## Зашагивания на скамью или стул (`step_up`)
+
+**Кадр 1.** Исходное положение: одна стопа на опоре
+
+👨 Мужчина — подпись `step_up 1`
+
+```
+Photorealistic professional fitness photography, 4K, ultra detailed, shot on a full-frame camera with a 50mm lens, soft natural studio lighting, sharp focus, realistic skin texture and anatomy, correct exercise technique and accurate joint angles, full body in frame, the same model throughout the series, no text, no labels, no watermark, no logos, 4:3 aspect ratio. A male fitness model in his late 20s with an athletic, naturally muscular build, short hair, wearing a plain black t-shirt, grey shorts and white sneakers, in a bright modern gym, softly blurred background with bokeh, standing in front of a sturdy bench, one foot fully placed on the bench, torso upright, side view.
+```
+
+👩 Женщина — подпись `step_up 1 f`
+
+```
+Photorealistic professional fitness photography, 4K, ultra detailed, shot on a full-frame camera with a 50mm lens, soft natural studio lighting, sharp focus, realistic skin texture and anatomy, correct exercise technique and accurate joint angles, full body in frame, the same model throughout the series, no text, no labels, no watermark, no logos, 4:3 aspect ratio. A female fitness model in her late 20s with a toned athletic build, hair tied in a ponytail, wearing a black sports top, grey leggings and white sneakers, in a bright modern gym, softly blurred background with bokeh, standing in front of a sturdy bench, one foot fully placed on the bench, torso upright, side view.
+```
+
+**Кадр 2.** Верхняя точка: стоя на опоре
+
+👨 Мужчина — подпись `step_up 2`
+
+```
+Photorealistic professional fitness photography, 4K, ultra detailed, shot on a full-frame camera with a 50mm lens, soft natural studio lighting, sharp focus, realistic skin texture and anatomy, correct exercise technique and accurate joint angles, full body in frame, the same model throughout the series, no text, no labels, no watermark, no logos, 4:3 aspect ratio. A male fitness model in his late 20s with an athletic, naturally muscular build, short hair, wearing a plain black t-shirt, grey shorts and white sneakers, in a bright modern gym, softly blurred background with bokeh, step-up top, standing upright on the bench on one leg, other knee lifted, side view.
+```
+
+👩 Женщина — подпись `step_up 2 f`
+
+```
+Photorealistic professional fitness photography, 4K, ultra detailed, shot on a full-frame camera with a 50mm lens, soft natural studio lighting, sharp focus, realistic skin texture and anatomy, correct exercise technique and accurate joint angles, full body in frame, the same model throughout the series, no text, no labels, no watermark, no logos, 4:3 aspect ratio. A female fitness model in her late 20s with a toned athletic build, hair tied in a ponytail, wearing a black sports top, grey leggings and white sneakers, in a bright modern gym, softly blurred background with bokeh, step-up top, standing upright on the bench on one leg, other knee lifted, side view.
+```
+
+## Сгибания ног сидя в тренажёре (`seated_leg_curl`)
+
+**Кадр 1.** Исходное положение: ноги выпрямлены
+
+👨 Мужчина — подпись `seated_leg_curl 1`
+
+```
+Photorealistic professional fitness photography, 4K, ultra detailed, shot on a full-frame camera with a 50mm lens, soft natural studio lighting, sharp focus, realistic skin texture and anatomy, correct exercise technique and accurate joint angles, full body in frame, the same model throughout the series, no text, no labels, no watermark, no logos, 4:3 aspect ratio. A male fitness model in his late 20s with an athletic, naturally muscular build, short hair, wearing a plain black t-shirt, grey shorts and white sneakers, in a bright modern gym, softly blurred background with bokeh, seated in a leg curl machine, thighs locked under the pad, legs extended with the roller above the heels, side view.
+```
+
+👩 Женщина — подпись `seated_leg_curl 1 f`
+
+```
+Photorealistic professional fitness photography, 4K, ultra detailed, shot on a full-frame camera with a 50mm lens, soft natural studio lighting, sharp focus, realistic skin texture and anatomy, correct exercise technique and accurate joint angles, full body in frame, the same model throughout the series, no text, no labels, no watermark, no logos, 4:3 aspect ratio. A female fitness model in her late 20s with a toned athletic build, hair tied in a ponytail, wearing a black sports top, grey leggings and white sneakers, in a bright modern gym, softly blurred background with bokeh, seated in a leg curl machine, thighs locked under the pad, legs extended with the roller above the heels, side view.
+```
+
+**Кадр 2.** Конечное положение: ноги согнуты
+
+👨 Мужчина — подпись `seated_leg_curl 2`
+
+```
+Photorealistic professional fitness photography, 4K, ultra detailed, shot on a full-frame camera with a 50mm lens, soft natural studio lighting, sharp focus, realistic skin texture and anatomy, correct exercise technique and accurate joint angles, full body in frame, the same model throughout the series, no text, no labels, no watermark, no logos, 4:3 aspect ratio. A male fitness model in his late 20s with an athletic, naturally muscular build, short hair, wearing a plain black t-shirt, grey shorts and white sneakers, in a bright modern gym, softly blurred background with bokeh, seated leg curl end position, knees bent, heels pulled under the seat, hamstrings contracted, side view.
+```
+
+👩 Женщина — подпись `seated_leg_curl 2 f`
+
+```
+Photorealistic professional fitness photography, 4K, ultra detailed, shot on a full-frame camera with a 50mm lens, soft natural studio lighting, sharp focus, realistic skin texture and anatomy, correct exercise technique and accurate joint angles, full body in frame, the same model throughout the series, no text, no labels, no watermark, no logos, 4:3 aspect ratio. A female fitness model in her late 20s with a toned athletic build, hair tied in a ponytail, wearing a black sports top, grey leggings and white sneakers, in a bright modern gym, softly blurred background with bokeh, seated leg curl end position, knees bent, heels pulled under the seat, hamstrings contracted, side view.
+```
+
+## Румынская тяга с гантелями (`db_rdl`)
+
+**Кадр 1.** Исходное положение: стоя, гантели у бёдер
+
+👨 Мужчина — подпись `db_rdl 1`
+
+```
+Photorealistic professional fitness photography, 4K, ultra detailed, shot on a full-frame camera with a 50mm lens, soft natural studio lighting, sharp focus, realistic skin texture and anatomy, correct exercise technique and accurate joint angles, full body in frame, the same model throughout the series, no text, no labels, no watermark, no logos, 4:3 aspect ratio. A male fitness model in his late 20s with an athletic, naturally muscular build, short hair, wearing a plain black t-shirt, grey shorts and white sneakers, in a bright modern gym, softly blurred background with bokeh, standing tall holding two dumbbells in front of the thighs, knees slightly bent, side view.
+```
+
+👩 Женщина — подпись `db_rdl 1 f`
+
+```
+Photorealistic professional fitness photography, 4K, ultra detailed, shot on a full-frame camera with a 50mm lens, soft natural studio lighting, sharp focus, realistic skin texture and anatomy, correct exercise technique and accurate joint angles, full body in frame, the same model throughout the series, no text, no labels, no watermark, no logos, 4:3 aspect ratio. A female fitness model in her late 20s with a toned athletic build, hair tied in a ponytail, wearing a black sports top, grey leggings and white sneakers, in a bright modern gym, softly blurred background with bokeh, standing tall holding two dumbbells in front of the thighs, knees slightly bent, side view.
+```
+
+**Кадр 2.** Нижняя точка: наклон, гантели у середины голени
+
+👨 Мужчина — подпись `db_rdl 2`
+
+```
+Photorealistic professional fitness photography, 4K, ultra detailed, shot on a full-frame camera with a 50mm lens, soft natural studio lighting, sharp focus, realistic skin texture and anatomy, correct exercise technique and accurate joint angles, full body in frame, the same model throughout the series, no text, no labels, no watermark, no logos, 4:3 aspect ratio. A male fitness model in his late 20s with an athletic, naturally muscular build, short hair, wearing a plain black t-shirt, grey shorts and white sneakers, in a bright modern gym, softly blurred background with bokeh, dumbbell Romanian deadlift bottom, hips pushed back, flat back, dumbbells at mid-shin close to the legs, side view.
+```
+
+👩 Женщина — подпись `db_rdl 2 f`
+
+```
+Photorealistic professional fitness photography, 4K, ultra detailed, shot on a full-frame camera with a 50mm lens, soft natural studio lighting, sharp focus, realistic skin texture and anatomy, correct exercise technique and accurate joint angles, full body in frame, the same model throughout the series, no text, no labels, no watermark, no logos, 4:3 aspect ratio. A female fitness model in her late 20s with a toned athletic build, hair tied in a ponytail, wearing a black sports top, grey leggings and white sneakers, in a bright modern gym, softly blurred background with bokeh, dumbbell Romanian deadlift bottom, hips pushed back, flat back, dumbbells at mid-shin close to the legs, side view.
+```
+
+## Разведение ног в тренажёре (`hip_abduction`)
+
+**Кадр 1.** Исходное положение: ноги сведены
+
+👨 Мужчина — подпись `hip_abduction 1`
+
+```
+Photorealistic professional fitness photography, 4K, ultra detailed, shot on a full-frame camera with a 50mm lens, soft natural studio lighting, sharp focus, realistic skin texture and anatomy, correct exercise technique and accurate joint angles, full body in frame, the same model throughout the series, no text, no labels, no watermark, no logos, 4:3 aspect ratio. A male fitness model in his late 20s with an athletic, naturally muscular build, short hair, wearing a plain black t-shirt, grey shorts and white sneakers, in a bright modern gym, softly blurred background with bokeh, seated in a hip abduction machine, back against the pad, pads on the outside of the knees, legs together, front view.
+```
+
+👩 Женщина — подпись `hip_abduction 1 f`
+
+```
+Photorealistic professional fitness photography, 4K, ultra detailed, shot on a full-frame camera with a 50mm lens, soft natural studio lighting, sharp focus, realistic skin texture and anatomy, correct exercise technique and accurate joint angles, full body in frame, the same model throughout the series, no text, no labels, no watermark, no logos, 4:3 aspect ratio. A female fitness model in her late 20s with a toned athletic build, hair tied in a ponytail, wearing a black sports top, grey leggings and white sneakers, in a bright modern gym, softly blurred background with bokeh, seated in a hip abduction machine, back against the pad, pads on the outside of the knees, legs together, front view.
+```
+
+**Кадр 2.** Конечное положение: ноги разведены
+
+👨 Мужчина — подпись `hip_abduction 2`
+
+```
+Photorealistic professional fitness photography, 4K, ultra detailed, shot on a full-frame camera with a 50mm lens, soft natural studio lighting, sharp focus, realistic skin texture and anatomy, correct exercise technique and accurate joint angles, full body in frame, the same model throughout the series, no text, no labels, no watermark, no logos, 4:3 aspect ratio. A male fitness model in his late 20s with an athletic, naturally muscular build, short hair, wearing a plain black t-shirt, grey shorts and white sneakers, in a bright modern gym, softly blurred background with bokeh, hip abduction machine end position, legs pushed wide apart, glutes contracted, front view.
+```
+
+👩 Женщина — подпись `hip_abduction 2 f`
+
+```
+Photorealistic professional fitness photography, 4K, ultra detailed, shot on a full-frame camera with a 50mm lens, soft natural studio lighting, sharp focus, realistic skin texture and anatomy, correct exercise technique and accurate joint angles, full body in frame, the same model throughout the series, no text, no labels, no watermark, no logos, 4:3 aspect ratio. A female fitness model in her late 20s with a toned athletic build, hair tied in a ponytail, wearing a black sports top, grey leggings and white sneakers, in a bright modern gym, softly blurred background with bokeh, hip abduction machine end position, legs pushed wide apart, glutes contracted, front view.
+```
+
+## Отведение ноги назад на четвереньках (`donkey_kick`)
+
+**Кадр 1.** Исходное положение: на четвереньках
+
+👨 Мужчина — подпись `donkey_kick 1`
+
+```
+Photorealistic professional fitness photography, 4K, ultra detailed, shot on a full-frame camera with a 50mm lens, soft natural studio lighting, sharp focus, realistic skin texture and anatomy, correct exercise technique and accurate joint angles, full body in frame, the same model throughout the series, no text, no labels, no watermark, no logos, 4:3 aspect ratio. A male fitness model in his late 20s with an athletic, naturally muscular build, short hair, wearing a plain black t-shirt, grey shorts and white sneakers, in a bright modern gym, softly blurred background with bokeh, on all fours on a yoga mat, hands under shoulders, knees under hips, flat back, side view.
+```
+
+👩 Женщина — подпись `donkey_kick 1 f`
+
+```
+Photorealistic professional fitness photography, 4K, ultra detailed, shot on a full-frame camera with a 50mm lens, soft natural studio lighting, sharp focus, realistic skin texture and anatomy, correct exercise technique and accurate joint angles, full body in frame, the same model throughout the series, no text, no labels, no watermark, no logos, 4:3 aspect ratio. A female fitness model in her late 20s with a toned athletic build, hair tied in a ponytail, wearing a black sports top, grey leggings and white sneakers, in a bright modern gym, softly blurred background with bokeh, on all fours on a yoga mat, hands under shoulders, knees under hips, flat back, side view.
+```
+
+**Кадр 2.** Верхняя точка: нога поднята пяткой вверх
+
+👨 Мужчина — подпись `donkey_kick 2`
+
+```
+Photorealistic professional fitness photography, 4K, ultra detailed, shot on a full-frame camera with a 50mm lens, soft natural studio lighting, sharp focus, realistic skin texture and anatomy, correct exercise technique and accurate joint angles, full body in frame, the same model throughout the series, no text, no labels, no watermark, no logos, 4:3 aspect ratio. A male fitness model in his late 20s with an athletic, naturally muscular build, short hair, wearing a plain black t-shirt, grey shorts and white sneakers, in a bright modern gym, softly blurred background with bokeh, donkey kick top, one bent leg lifted with the heel toward the ceiling, thigh in line with the torso, flat back, side view.
+```
+
+👩 Женщина — подпись `donkey_kick 2 f`
+
+```
+Photorealistic professional fitness photography, 4K, ultra detailed, shot on a full-frame camera with a 50mm lens, soft natural studio lighting, sharp focus, realistic skin texture and anatomy, correct exercise technique and accurate joint angles, full body in frame, the same model throughout the series, no text, no labels, no watermark, no logos, 4:3 aspect ratio. A female fitness model in her late 20s with a toned athletic build, hair tied in a ponytail, wearing a black sports top, grey leggings and white sneakers, in a bright modern gym, softly blurred background with bokeh, donkey kick top, one bent leg lifted with the heel toward the ceiling, thigh in line with the torso, flat back, side view.
+```
+
+## Подъём гантелей на бицепс (`db_curl`)
+
+**Кадр 1.** Исходное положение: гантели у бёдер
+
+👨 Мужчина — подпись `db_curl 1`
+
+```
+Photorealistic professional fitness photography, 4K, ultra detailed, shot on a full-frame camera with a 50mm lens, soft natural studio lighting, sharp focus, realistic skin texture and anatomy, correct exercise technique and accurate joint angles, full body in frame, the same model throughout the series, no text, no labels, no watermark, no logos, 4:3 aspect ratio. A male fitness model in his late 20s with an athletic, naturally muscular build, short hair, wearing a plain black t-shirt, grey shorts and white sneakers, in a bright modern gym, softly blurred background with bokeh, standing with dumbbells at the sides, palms facing forward, elbows at the sides, front view.
+```
+
+👩 Женщина — подпись `db_curl 1 f`
+
+```
+Photorealistic professional fitness photography, 4K, ultra detailed, shot on a full-frame camera with a 50mm lens, soft natural studio lighting, sharp focus, realistic skin texture and anatomy, correct exercise technique and accurate joint angles, full body in frame, the same model throughout the series, no text, no labels, no watermark, no logos, 4:3 aspect ratio. A female fitness model in her late 20s with a toned athletic build, hair tied in a ponytail, wearing a black sports top, grey leggings and white sneakers, in a bright modern gym, softly blurred background with bokeh, standing with dumbbells at the sides, palms facing forward, elbows at the sides, front view.
+```
+
+**Кадр 2.** Верхняя точка: гантели у плеч
+
+👨 Мужчина — подпись `db_curl 2`
+
+```
+Photorealistic professional fitness photography, 4K, ultra detailed, shot on a full-frame camera with a 50mm lens, soft natural studio lighting, sharp focus, realistic skin texture and anatomy, correct exercise technique and accurate joint angles, full body in frame, the same model throughout the series, no text, no labels, no watermark, no logos, 4:3 aspect ratio. A male fitness model in his late 20s with an athletic, naturally muscular build, short hair, wearing a plain black t-shirt, grey shorts and white sneakers, in a bright modern gym, softly blurred background with bokeh, dumbbell biceps curl top, dumbbells curled to the shoulders, elbows still at the sides, front view.
+```
+
+👩 Женщина — подпись `db_curl 2 f`
+
+```
+Photorealistic professional fitness photography, 4K, ultra detailed, shot on a full-frame camera with a 50mm lens, soft natural studio lighting, sharp focus, realistic skin texture and anatomy, correct exercise technique and accurate joint angles, full body in frame, the same model throughout the series, no text, no labels, no watermark, no logos, 4:3 aspect ratio. A female fitness model in her late 20s with a toned athletic build, hair tied in a ponytail, wearing a black sports top, grey leggings and white sneakers, in a bright modern gym, softly blurred background with bokeh, dumbbell biceps curl top, dumbbells curled to the shoulders, elbows still at the sides, front view.
+```
+
+## Сгибания рук на нижнем блоке (`cable_curl`)
+
+**Кадр 1.** Исходное положение: рукоять у бёдер
+
+👨 Мужчина — подпись `cable_curl 1`
+
+```
+Photorealistic professional fitness photography, 4K, ultra detailed, shot on a full-frame camera with a 50mm lens, soft natural studio lighting, sharp focus, realistic skin texture and anatomy, correct exercise technique and accurate joint angles, full body in frame, the same model throughout the series, no text, no labels, no watermark, no logos, 4:3 aspect ratio. A male fitness model in his late 20s with an athletic, naturally muscular build, short hair, wearing a plain black t-shirt, grey shorts and white sneakers, in a bright modern gym, softly blurred background with bokeh, standing facing a low cable pulley, holding a straight bar with an underhand grip at the thighs, elbows at the sides, side view.
+```
+
+👩 Женщина — подпись `cable_curl 1 f`
+
+```
+Photorealistic professional fitness photography, 4K, ultra detailed, shot on a full-frame camera with a 50mm lens, soft natural studio lighting, sharp focus, realistic skin texture and anatomy, correct exercise technique and accurate joint angles, full body in frame, the same model throughout the series, no text, no labels, no watermark, no logos, 4:3 aspect ratio. A female fitness model in her late 20s with a toned athletic build, hair tied in a ponytail, wearing a black sports top, grey leggings and white sneakers, in a bright modern gym, softly blurred background with bokeh, standing facing a low cable pulley, holding a straight bar with an underhand grip at the thighs, elbows at the sides, side view.
+```
+
+**Кадр 2.** Верхняя точка: рукоять у груди
+
+👨 Мужчина — подпись `cable_curl 2`
+
+```
+Photorealistic professional fitness photography, 4K, ultra detailed, shot on a full-frame camera with a 50mm lens, soft natural studio lighting, sharp focus, realistic skin texture and anatomy, correct exercise technique and accurate joint angles, full body in frame, the same model throughout the series, no text, no labels, no watermark, no logos, 4:3 aspect ratio. A male fitness model in his late 20s with an athletic, naturally muscular build, short hair, wearing a plain black t-shirt, grey shorts and white sneakers, in a bright modern gym, softly blurred background with bokeh, cable biceps curl top, bar curled up to the chest, elbows still at the sides, side view.
+```
+
+👩 Женщина — подпись `cable_curl 2 f`
+
+```
+Photorealistic professional fitness photography, 4K, ultra detailed, shot on a full-frame camera with a 50mm lens, soft natural studio lighting, sharp focus, realistic skin texture and anatomy, correct exercise technique and accurate joint angles, full body in frame, the same model throughout the series, no text, no labels, no watermark, no logos, 4:3 aspect ratio. A female fitness model in her late 20s with a toned athletic build, hair tied in a ponytail, wearing a black sports top, grey leggings and white sneakers, in a bright modern gym, softly blurred background with bokeh, cable biceps curl top, bar curled up to the chest, elbows still at the sides, side view.
+```
+
+## Сгибания на скамье Скотта (`preacher_curl`)
+
+**Кадр 1.** Исходное положение: руки почти прямые на подушке
+
+👨 Мужчина — подпись `preacher_curl 1`
+
+```
+Photorealistic professional fitness photography, 4K, ultra detailed, shot on a full-frame camera with a 50mm lens, soft natural studio lighting, sharp focus, realistic skin texture and anatomy, correct exercise technique and accurate joint angles, full body in frame, the same model throughout the series, no text, no labels, no watermark, no logos, 4:3 aspect ratio. A male fitness model in his late 20s with an athletic, naturally muscular build, short hair, wearing a plain black t-shirt, grey shorts and white sneakers, in a bright modern gym, softly blurred background with bokeh, seated at a preacher curl bench, upper arms resting on the pad, holding an EZ bar with arms almost straight, side view.
+```
+
+👩 Женщина — подпись `preacher_curl 1 f`
+
+```
+Photorealistic professional fitness photography, 4K, ultra detailed, shot on a full-frame camera with a 50mm lens, soft natural studio lighting, sharp focus, realistic skin texture and anatomy, correct exercise technique and accurate joint angles, full body in frame, the same model throughout the series, no text, no labels, no watermark, no logos, 4:3 aspect ratio. A female fitness model in her late 20s with a toned athletic build, hair tied in a ponytail, wearing a black sports top, grey leggings and white sneakers, in a bright modern gym, softly blurred background with bokeh, seated at a preacher curl bench, upper arms resting on the pad, holding an EZ bar with arms almost straight, side view.
+```
+
+**Кадр 2.** Верхняя точка: гриф у плеч
+
+👨 Мужчина — подпись `preacher_curl 2`
+
+```
+Photorealistic professional fitness photography, 4K, ultra detailed, shot on a full-frame camera with a 50mm lens, soft natural studio lighting, sharp focus, realistic skin texture and anatomy, correct exercise technique and accurate joint angles, full body in frame, the same model throughout the series, no text, no labels, no watermark, no logos, 4:3 aspect ratio. A male fitness model in his late 20s with an athletic, naturally muscular build, short hair, wearing a plain black t-shirt, grey shorts and white sneakers, in a bright modern gym, softly blurred background with bokeh, preacher curl top, EZ bar curled up toward the shoulders, upper arms still on the pad, side view.
+```
+
+👩 Женщина — подпись `preacher_curl 2 f`
+
+```
+Photorealistic professional fitness photography, 4K, ultra detailed, shot on a full-frame camera with a 50mm lens, soft natural studio lighting, sharp focus, realistic skin texture and anatomy, correct exercise technique and accurate joint angles, full body in frame, the same model throughout the series, no text, no labels, no watermark, no logos, 4:3 aspect ratio. A female fitness model in her late 20s with a toned athletic build, hair tied in a ponytail, wearing a black sports top, grey leggings and white sneakers, in a bright modern gym, softly blurred background with bokeh, preacher curl top, EZ bar curled up toward the shoulders, upper arms still on the pad, side view.
+```
+
+## Разгибание из-за головы на блоке (`overhead_cable`)
+
+**Кадр 1.** Исходное положение: канат за головой
+
+👨 Мужчина — подпись `overhead_cable 1`
+
+```
+Photorealistic professional fitness photography, 4K, ultra detailed, shot on a full-frame camera with a 50mm lens, soft natural studio lighting, sharp focus, realistic skin texture and anatomy, correct exercise technique and accurate joint angles, full body in frame, the same model throughout the series, no text, no labels, no watermark, no logos, 4:3 aspect ratio. A male fitness model in his late 20s with an athletic, naturally muscular build, short hair, wearing a plain black t-shirt, grey shorts and white sneakers, in a bright modern gym, softly blurred background with bokeh, standing with back to a cable pulley, rope held behind the head, elbows bent and pointing forward, slight forward lean, split stance, side view.
+```
+
+👩 Женщина — подпись `overhead_cable 1 f`
+
+```
+Photorealistic professional fitness photography, 4K, ultra detailed, shot on a full-frame camera with a 50mm lens, soft natural studio lighting, sharp focus, realistic skin texture and anatomy, correct exercise technique and accurate joint angles, full body in frame, the same model throughout the series, no text, no labels, no watermark, no logos, 4:3 aspect ratio. A female fitness model in her late 20s with a toned athletic build, hair tied in a ponytail, wearing a black sports top, grey leggings and white sneakers, in a bright modern gym, softly blurred background with bokeh, standing with back to a cable pulley, rope held behind the head, elbows bent and pointing forward, slight forward lean, split stance, side view.
+```
+
+**Кадр 2.** Конечное положение: руки выпрямлены вперёд-вверх
+
+👨 Мужчина — подпись `overhead_cable 2`
+
+```
+Photorealistic professional fitness photography, 4K, ultra detailed, shot on a full-frame camera with a 50mm lens, soft natural studio lighting, sharp focus, realistic skin texture and anatomy, correct exercise technique and accurate joint angles, full body in frame, the same model throughout the series, no text, no labels, no watermark, no logos, 4:3 aspect ratio. A male fitness model in his late 20s with an athletic, naturally muscular build, short hair, wearing a plain black t-shirt, grey shorts and white sneakers, in a bright modern gym, softly blurred background with bokeh, overhead cable triceps extension end, arms extended forward and up, elbows close to the head, side view.
+```
+
+👩 Женщина — подпись `overhead_cable 2 f`
+
+```
+Photorealistic professional fitness photography, 4K, ultra detailed, shot on a full-frame camera with a 50mm lens, soft natural studio lighting, sharp focus, realistic skin texture and anatomy, correct exercise technique and accurate joint angles, full body in frame, the same model throughout the series, no text, no labels, no watermark, no logos, 4:3 aspect ratio. A female fitness model in her late 20s with a toned athletic build, hair tied in a ponytail, wearing a black sports top, grey leggings and white sneakers, in a bright modern gym, softly blurred background with bokeh, overhead cable triceps extension end, arms extended forward and up, elbows close to the head, side view.
+```
+
+## Жим штанги узким хватом (`close_bench`)
+
+**Кадр 1.** Исходное положение: штанга над грудью, хват на ширине плеч
+
+👨 Мужчина — подпись `close_bench 1`
+
+```
+Photorealistic professional fitness photography, 4K, ultra detailed, shot on a full-frame camera with a 50mm lens, soft natural studio lighting, sharp focus, realistic skin texture and anatomy, correct exercise technique and accurate joint angles, full body in frame, the same model throughout the series, no text, no labels, no watermark, no logos, 4:3 aspect ratio. A male fitness model in his late 20s with an athletic, naturally muscular build, short hair, wearing a plain black t-shirt, grey shorts and white sneakers, in a bright modern gym, softly blurred background with bokeh, lying on a flat bench, barbell held above the chest with a shoulder-width grip, arms straight, side view.
+```
+
+👩 Женщина — подпись `close_bench 1 f`
+
+```
+Photorealistic professional fitness photography, 4K, ultra detailed, shot on a full-frame camera with a 50mm lens, soft natural studio lighting, sharp focus, realistic skin texture and anatomy, correct exercise technique and accurate joint angles, full body in frame, the same model throughout the series, no text, no labels, no watermark, no logos, 4:3 aspect ratio. A female fitness model in her late 20s with a toned athletic build, hair tied in a ponytail, wearing a black sports top, grey leggings and white sneakers, in a bright modern gym, softly blurred background with bokeh, lying on a flat bench, barbell held above the chest with a shoulder-width grip, arms straight, side view.
+```
+
+**Кадр 2.** Нижняя точка: гриф у низа груди, локти вдоль корпуса
+
+👨 Мужчина — подпись `close_bench 2`
+
+```
+Photorealistic professional fitness photography, 4K, ultra detailed, shot on a full-frame camera with a 50mm lens, soft natural studio lighting, sharp focus, realistic skin texture and anatomy, correct exercise technique and accurate joint angles, full body in frame, the same model throughout the series, no text, no labels, no watermark, no logos, 4:3 aspect ratio. A male fitness model in his late 20s with an athletic, naturally muscular build, short hair, wearing a plain black t-shirt, grey shorts and white sneakers, in a bright modern gym, softly blurred background with bokeh, close-grip bench press bottom, bar lowered to the lower chest, elbows tucked close to the torso, side view.
+```
+
+👩 Женщина — подпись `close_bench 2 f`
+
+```
+Photorealistic professional fitness photography, 4K, ultra detailed, shot on a full-frame camera with a 50mm lens, soft natural studio lighting, sharp focus, realistic skin texture and anatomy, correct exercise technique and accurate joint angles, full body in frame, the same model throughout the series, no text, no labels, no watermark, no logos, 4:3 aspect ratio. A female fitness model in her late 20s with a toned athletic build, hair tied in a ponytail, wearing a black sports top, grey leggings and white sneakers, in a bright modern gym, softly blurred background with bokeh, close-grip bench press bottom, bar lowered to the lower chest, elbows tucked close to the torso, side view.
+```
+
+## Разгибание гантели в наклоне (`db_kickback`)
+
+**Кадр 1.** Исходное положение: рука согнута под 90°
+
+👨 Мужчина — подпись `db_kickback 1`
+
+```
+Photorealistic professional fitness photography, 4K, ultra detailed, shot on a full-frame camera with a 50mm lens, soft natural studio lighting, sharp focus, realistic skin texture and anatomy, correct exercise technique and accurate joint angles, full body in frame, the same model throughout the series, no text, no labels, no watermark, no logos, 4:3 aspect ratio. A male fitness model in his late 20s with an athletic, naturally muscular build, short hair, wearing a plain black t-shirt, grey shorts and white sneakers, in a bright modern gym, softly blurred background with bokeh, kneeling with one knee and hand on a bench, torso parallel to the floor, upper arm against the side, elbow bent 90 degrees holding a dumbbell, side view.
+```
+
+👩 Женщина — подпись `db_kickback 1 f`
+
+```
+Photorealistic professional fitness photography, 4K, ultra detailed, shot on a full-frame camera with a 50mm lens, soft natural studio lighting, sharp focus, realistic skin texture and anatomy, correct exercise technique and accurate joint angles, full body in frame, the same model throughout the series, no text, no labels, no watermark, no logos, 4:3 aspect ratio. A female fitness model in her late 20s with a toned athletic build, hair tied in a ponytail, wearing a black sports top, grey leggings and white sneakers, in a bright modern gym, softly blurred background with bokeh, kneeling with one knee and hand on a bench, torso parallel to the floor, upper arm against the side, elbow bent 90 degrees holding a dumbbell, side view.
+```
+
+**Кадр 2.** Конечное положение: рука выпрямлена назад
+
+👨 Мужчина — подпись `db_kickback 2`
+
+```
+Photorealistic professional fitness photography, 4K, ultra detailed, shot on a full-frame camera with a 50mm lens, soft natural studio lighting, sharp focus, realistic skin texture and anatomy, correct exercise technique and accurate joint angles, full body in frame, the same model throughout the series, no text, no labels, no watermark, no logos, 4:3 aspect ratio. A male fitness model in his late 20s with an athletic, naturally muscular build, short hair, wearing a plain black t-shirt, grey shorts and white sneakers, in a bright modern gym, softly blurred background with bokeh, dumbbell kickback end, arm fully extended back, upper arm still parallel to the floor, side view.
+```
+
+👩 Женщина — подпись `db_kickback 2 f`
+
+```
+Photorealistic professional fitness photography, 4K, ultra detailed, shot on a full-frame camera with a 50mm lens, soft natural studio lighting, sharp focus, realistic skin texture and anatomy, correct exercise technique and accurate joint angles, full body in frame, the same model throughout the series, no text, no labels, no watermark, no logos, 4:3 aspect ratio. A female fitness model in her late 20s with a toned athletic build, hair tied in a ponytail, wearing a black sports top, grey leggings and white sneakers, in a bright modern gym, softly blurred background with bokeh, dumbbell kickback end, arm fully extended back, upper arm still parallel to the floor, side view.
+```
+
+## Подъёмы на носки сидя (`seated_calf`)
+
+**Кадр 1.** Нижняя точка: пятки опущены
+
+👨 Мужчина — подпись `seated_calf 1`
+
+```
+Photorealistic professional fitness photography, 4K, ultra detailed, shot on a full-frame camera with a 50mm lens, soft natural studio lighting, sharp focus, realistic skin texture and anatomy, correct exercise technique and accurate joint angles, full body in frame, the same model throughout the series, no text, no labels, no watermark, no logos, 4:3 aspect ratio. A male fitness model in his late 20s with an athletic, naturally muscular build, short hair, wearing a plain black t-shirt, grey shorts and white sneakers, in a bright modern gym, softly blurred background with bokeh, seated calf raise machine, pad on the thighs above the knees, balls of the feet on the platform, heels lowered, side view.
+```
+
+👩 Женщина — подпись `seated_calf 1 f`
+
+```
+Photorealistic professional fitness photography, 4K, ultra detailed, shot on a full-frame camera with a 50mm lens, soft natural studio lighting, sharp focus, realistic skin texture and anatomy, correct exercise technique and accurate joint angles, full body in frame, the same model throughout the series, no text, no labels, no watermark, no logos, 4:3 aspect ratio. A female fitness model in her late 20s with a toned athletic build, hair tied in a ponytail, wearing a black sports top, grey leggings and white sneakers, in a bright modern gym, softly blurred background with bokeh, seated calf raise machine, pad on the thighs above the knees, balls of the feet on the platform, heels lowered, side view.
+```
+
+**Кадр 2.** Верхняя точка: подъём на носки
+
+👨 Мужчина — подпись `seated_calf 2`
+
+```
+Photorealistic professional fitness photography, 4K, ultra detailed, shot on a full-frame camera with a 50mm lens, soft natural studio lighting, sharp focus, realistic skin texture and anatomy, correct exercise technique and accurate joint angles, full body in frame, the same model throughout the series, no text, no labels, no watermark, no logos, 4:3 aspect ratio. A male fitness model in his late 20s with an athletic, naturally muscular build, short hair, wearing a plain black t-shirt, grey shorts and white sneakers, in a bright modern gym, softly blurred background with bokeh, seated calf raise top, heels raised high, calves contracted, side view.
+```
+
+👩 Женщина — подпись `seated_calf 2 f`
+
+```
+Photorealistic professional fitness photography, 4K, ultra detailed, shot on a full-frame camera with a 50mm lens, soft natural studio lighting, sharp focus, realistic skin texture and anatomy, correct exercise technique and accurate joint angles, full body in frame, the same model throughout the series, no text, no labels, no watermark, no logos, 4:3 aspect ratio. A female fitness model in her late 20s with a toned athletic build, hair tied in a ponytail, wearing a black sports top, grey leggings and white sneakers, in a bright modern gym, softly blurred background with bokeh, seated calf raise top, heels raised high, calves contracted, side view.
+```
+
+## Подъёмы ног лёжа (`leg_raise`)
+
+**Кадр 1.** Исходное положение: ноги чуть над полом
+
+👨 Мужчина — подпись `leg_raise 1`
+
+```
+Photorealistic professional fitness photography, 4K, ultra detailed, shot on a full-frame camera with a 50mm lens, soft natural studio lighting, sharp focus, realistic skin texture and anatomy, correct exercise technique and accurate joint angles, full body in frame, the same model throughout the series, no text, no labels, no watermark, no logos, 4:3 aspect ratio. A male fitness model in his late 20s with an athletic, naturally muscular build, short hair, wearing a plain black t-shirt, grey shorts and white sneakers, in a bright modern gym, softly blurred background with bokeh, lying on the back on a yoga mat, hands by the sides, straight legs held just above the floor, lower back pressed down, side view.
+```
+
+👩 Женщина — подпись `leg_raise 1 f`
+
+```
+Photorealistic professional fitness photography, 4K, ultra detailed, shot on a full-frame camera with a 50mm lens, soft natural studio lighting, sharp focus, realistic skin texture and anatomy, correct exercise technique and accurate joint angles, full body in frame, the same model throughout the series, no text, no labels, no watermark, no logos, 4:3 aspect ratio. A female fitness model in her late 20s with a toned athletic build, hair tied in a ponytail, wearing a black sports top, grey leggings and white sneakers, in a bright modern gym, softly blurred background with bokeh, lying on the back on a yoga mat, hands by the sides, straight legs held just above the floor, lower back pressed down, side view.
+```
+
+**Кадр 2.** Верхняя точка: ноги вертикально
+
+👨 Мужчина — подпись `leg_raise 2`
+
+```
+Photorealistic professional fitness photography, 4K, ultra detailed, shot on a full-frame camera with a 50mm lens, soft natural studio lighting, sharp focus, realistic skin texture and anatomy, correct exercise technique and accurate joint angles, full body in frame, the same model throughout the series, no text, no labels, no watermark, no logos, 4:3 aspect ratio. A male fitness model in his late 20s with an athletic, naturally muscular build, short hair, wearing a plain black t-shirt, grey shorts and white sneakers, in a bright modern gym, softly blurred background with bokeh, lying leg raise top, straight legs raised to vertical, lower back on the mat, side view.
+```
+
+👩 Женщина — подпись `leg_raise 2 f`
+
+```
+Photorealistic professional fitness photography, 4K, ultra detailed, shot on a full-frame camera with a 50mm lens, soft natural studio lighting, sharp focus, realistic skin texture and anatomy, correct exercise technique and accurate joint angles, full body in frame, the same model throughout the series, no text, no labels, no watermark, no logos, 4:3 aspect ratio. A female fitness model in her late 20s with a toned athletic build, hair tied in a ponytail, wearing a black sports top, grey leggings and white sneakers, in a bright modern gym, softly blurred background with bokeh, lying leg raise top, straight legs raised to vertical, lower back on the mat, side view.
+```
+
+## Боковая планка (`side_plank`)
+
+**Кадр 1.** Положение: упор на предплечье, тело прямое
+
+👨 Мужчина — подпись `side_plank 1`
+
+```
+Photorealistic professional fitness photography, 4K, ultra detailed, shot on a full-frame camera with a 50mm lens, soft natural studio lighting, sharp focus, realistic skin texture and anatomy, correct exercise technique and accurate joint angles, full body in frame, the same model throughout the series, no text, no labels, no watermark, no logos, 4:3 aspect ratio. A male fitness model in his late 20s with an athletic, naturally muscular build, short hair, wearing a plain black t-shirt, grey shorts and white sneakers, in a bright modern gym, softly blurred background with bokeh, side plank on a yoga mat, supported on one forearm with the elbow under the shoulder, body in a straight line from head to feet, front view.
+```
+
+👩 Женщина — подпись `side_plank 1 f`
+
+```
+Photorealistic professional fitness photography, 4K, ultra detailed, shot on a full-frame camera with a 50mm lens, soft natural studio lighting, sharp focus, realistic skin texture and anatomy, correct exercise technique and accurate joint angles, full body in frame, the same model throughout the series, no text, no labels, no watermark, no logos, 4:3 aspect ratio. A female fitness model in her late 20s with a toned athletic build, hair tied in a ponytail, wearing a black sports top, grey leggings and white sneakers, in a bright modern gym, softly blurred background with bokeh, side plank on a yoga mat, supported on one forearm with the elbow under the shoulder, body in a straight line from head to feet, front view.
+```
+
+**Кадр 2.** Облегчённый вариант: с опорой на колено
+
+👨 Мужчина — подпись `side_plank 2`
+
+```
+Photorealistic professional fitness photography, 4K, ultra detailed, shot on a full-frame camera with a 50mm lens, soft natural studio lighting, sharp focus, realistic skin texture and anatomy, correct exercise technique and accurate joint angles, full body in frame, the same model throughout the series, no text, no labels, no watermark, no logos, 4:3 aspect ratio. A male fitness model in his late 20s with an athletic, naturally muscular build, short hair, wearing a plain black t-shirt, grey shorts and white sneakers, in a bright modern gym, softly blurred background with bokeh, modified side plank on a yoga mat, supported on the forearm and the bottom knee, hips lifted, straight line from head to knees, front view.
+```
+
+👩 Женщина — подпись `side_plank 2 f`
+
+```
+Photorealistic professional fitness photography, 4K, ultra detailed, shot on a full-frame camera with a 50mm lens, soft natural studio lighting, sharp focus, realistic skin texture and anatomy, correct exercise technique and accurate joint angles, full body in frame, the same model throughout the series, no text, no labels, no watermark, no logos, 4:3 aspect ratio. A female fitness model in her late 20s with a toned athletic build, hair tied in a ponytail, wearing a black sports top, grey leggings and white sneakers, in a bright modern gym, softly blurred background with bokeh, modified side plank on a yoga mat, supported on the forearm and the bottom knee, hips lifted, straight line from head to knees, front view.
+```
+
+## Велосипед (скручивания с поворотом) (`bicycle`)
+
+**Кадр 1.** Поворот к левому колену
+
+👨 Мужчина — подпись `bicycle 1`
+
+```
+Photorealistic professional fitness photography, 4K, ultra detailed, shot on a full-frame camera with a 50mm lens, soft natural studio lighting, sharp focus, realistic skin texture and anatomy, correct exercise technique and accurate joint angles, full body in frame, the same model throughout the series, no text, no labels, no watermark, no logos, 4:3 aspect ratio. A male fitness model in his late 20s with an athletic, naturally muscular build, short hair, wearing a plain black t-shirt, grey shorts and white sneakers, in a bright modern gym, softly blurred background with bokeh, bicycle crunch on a yoga mat, lying on the back, hands behind the head, right shoulder rotating toward the bent left knee, right leg extended, front three-quarter view.
+```
+
+👩 Женщина — подпись `bicycle 1 f`
+
+```
+Photorealistic professional fitness photography, 4K, ultra detailed, shot on a full-frame camera with a 50mm lens, soft natural studio lighting, sharp focus, realistic skin texture and anatomy, correct exercise technique and accurate joint angles, full body in frame, the same model throughout the series, no text, no labels, no watermark, no logos, 4:3 aspect ratio. A female fitness model in her late 20s with a toned athletic build, hair tied in a ponytail, wearing a black sports top, grey leggings and white sneakers, in a bright modern gym, softly blurred background with bokeh, bicycle crunch on a yoga mat, lying on the back, hands behind the head, right shoulder rotating toward the bent left knee, right leg extended, front three-quarter view.
+```
+
+**Кадр 2.** Поворот к правому колену
+
+👨 Мужчина — подпись `bicycle 2`
+
+```
+Photorealistic professional fitness photography, 4K, ultra detailed, shot on a full-frame camera with a 50mm lens, soft natural studio lighting, sharp focus, realistic skin texture and anatomy, correct exercise technique and accurate joint angles, full body in frame, the same model throughout the series, no text, no labels, no watermark, no logos, 4:3 aspect ratio. A male fitness model in his late 20s with an athletic, naturally muscular build, short hair, wearing a plain black t-shirt, grey shorts and white sneakers, in a bright modern gym, softly blurred background with bokeh, bicycle crunch on a yoga mat, left shoulder rotating toward the bent right knee, left leg extended, front three-quarter view.
+```
+
+👩 Женщина — подпись `bicycle 2 f`
+
+```
+Photorealistic professional fitness photography, 4K, ultra detailed, shot on a full-frame camera with a 50mm lens, soft natural studio lighting, sharp focus, realistic skin texture and anatomy, correct exercise technique and accurate joint angles, full body in frame, the same model throughout the series, no text, no labels, no watermark, no logos, 4:3 aspect ratio. A female fitness model in her late 20s with a toned athletic build, hair tied in a ponytail, wearing a black sports top, grey leggings and white sneakers, in a bright modern gym, softly blurred background with bokeh, bicycle crunch on a yoga mat, left shoulder rotating toward the bent right knee, left leg extended, front three-quarter view.
+```
+
+## Русские скручивания (`russian_twist`)
+
+**Кадр 1.** Исходное положение: корпус отклонён назад
+
+👨 Мужчина — подпись `russian_twist 1`
+
+```
+Photorealistic professional fitness photography, 4K, ultra detailed, shot on a full-frame camera with a 50mm lens, soft natural studio lighting, sharp focus, realistic skin texture and anatomy, correct exercise technique and accurate joint angles, full body in frame, the same model throughout the series, no text, no labels, no watermark, no logos, 4:3 aspect ratio. A male fitness model in his late 20s with an athletic, naturally muscular build, short hair, wearing a plain black t-shirt, grey shorts and white sneakers, in a bright modern gym, softly blurred background with bokeh, russian twist start on a yoga mat, seated with knees bent, torso leaning back with a straight spine, hands clasped in front of the chest, front view.
+```
+
+👩 Женщина — подпись `russian_twist 1 f`
+
+```
+Photorealistic professional fitness photography, 4K, ultra detailed, shot on a full-frame camera with a 50mm lens, soft natural studio lighting, sharp focus, realistic skin texture and anatomy, correct exercise technique and accurate joint angles, full body in frame, the same model throughout the series, no text, no labels, no watermark, no logos, 4:3 aspect ratio. A female fitness model in her late 20s with a toned athletic build, hair tied in a ponytail, wearing a black sports top, grey leggings and white sneakers, in a bright modern gym, softly blurred background with bokeh, russian twist start on a yoga mat, seated with knees bent, torso leaning back with a straight spine, hands clasped in front of the chest, front view.
+```
+
+**Кадр 2.** Поворот в сторону
+
+👨 Мужчина — подпись `russian_twist 2`
+
+```
+Photorealistic professional fitness photography, 4K, ultra detailed, shot on a full-frame camera with a 50mm lens, soft natural studio lighting, sharp focus, realistic skin texture and anatomy, correct exercise technique and accurate joint angles, full body in frame, the same model throughout the series, no text, no labels, no watermark, no logos, 4:3 aspect ratio. A male fitness model in his late 20s with an athletic, naturally muscular build, short hair, wearing a plain black t-shirt, grey shorts and white sneakers, in a bright modern gym, softly blurred background with bokeh, russian twist rotation, torso rotated to one side, hands touching the floor beside the hip, straight spine, front view.
+```
+
+👩 Женщина — подпись `russian_twist 2 f`
+
+```
+Photorealistic professional fitness photography, 4K, ultra detailed, shot on a full-frame camera with a 50mm lens, soft natural studio lighting, sharp focus, realistic skin texture and anatomy, correct exercise technique and accurate joint angles, full body in frame, the same model throughout the series, no text, no labels, no watermark, no logos, 4:3 aspect ratio. A female fitness model in her late 20s with a toned athletic build, hair tied in a ponytail, wearing a black sports top, grey leggings and white sneakers, in a bright modern gym, softly blurred background with bokeh, russian twist rotation, torso rotated to one side, hands touching the floor beside the hip, straight spine, front view.
+```

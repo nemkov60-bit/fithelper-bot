@@ -381,3 +381,55 @@ class WarmupAndWeightTests(unittest.TestCase):
             for row in fb.set_buttons(p, 62.5, True):
                 for _, data in row:
                     self.assertLessEqual(len(data.encode()), 64)
+
+
+class SwapTests(unittest.TestCase):
+    def user(self, uid):
+        return {'user_id': uid, 'goal': 'mass', 'level': 'mid', 'days': 3, 'place': fb.GYM, 'gender': 'm', 'age': '30'}
+
+    def test_extra_exercises_are_not_auto_picked(self):
+        extra = {e.id for e in fb._EXERCISE_LIST if not e.auto}
+        self.assertGreaterEqual(len(extra), 30)
+        for g in fb.GOALS:
+            for days in fb.DAY_OPTIONS:
+                for place in fb.PLACES:
+                    for day in fb.build_program(g, 'mid', days, place):
+                        self.assertFalse({p.exercise.id for p in day.exercises} & extra)
+
+    def test_alternatives_same_group_and_place(self):
+        day = fb.plan_day(self.user(0), 0)
+        bench_pos = [p.exercise.id for p in day.exercises].index('bench')
+        alts = fb.alternatives(day, bench_pos, fb.GYM)
+        ids = [e.id for e in alts]
+        self.assertIn('machine_press', ids)
+        self.assertIn('pec_deck', ids)
+        self.assertTrue(all(e.group == 'chest' and fb.GYM in e.places for e in alts))
+        self.assertNotIn('bench', ids)
+        self.assertTrue(alts[0].compound)  # для базового упражнения сначала базовые варианты
+
+    def test_persistent_and_temporary_swaps(self):
+        fb.init_db()
+        uid = 555
+        user = self.user(uid)
+        fb.set_swap(uid, fb.GYM, 'bench', 'machine_press')
+        ids = [p.exercise.id for p in fb.plan_day(user, 0).exercises]
+        self.assertIn('machine_press', ids)
+        self.assertNotIn('bench', ids)
+        # Дома замена для зала не действует.
+        self.assertNotIn('machine_press', [p.exercise.id for p in fb.plan_day(user, 0, place=fb.HOME).exercises])
+        # Временная замена поверх постоянной.
+        tmp = [p.exercise.id for p in fb.plan_day(user, 0, extra_swaps={'bench': 'db_bench'}).exercises]
+        self.assertIn('db_bench', tmp)
+        # Вернуть как в программе.
+        fb.set_swap(uid, fb.GYM, 'bench', 'bench')
+        self.assertIn('bench', [p.exercise.id for p in fb.plan_day(user, 0).exercises])
+        self.assertEqual(fb.count_swaps(uid), 0)
+
+    def test_swap_keeps_role_prescription(self):
+        fb.init_db()
+        uid = 556
+        fb.set_swap(uid, fb.GYM, 'bench', 'pec_deck')
+        day = fb.plan_day(self.user(uid), 0)
+        p = next(p for p in day.exercises if p.exercise.id == 'pec_deck')
+        self.assertEqual(p.role, 'main')
+        self.assertEqual(p.presc.sets, 4)

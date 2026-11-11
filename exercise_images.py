@@ -520,6 +520,16 @@ EXERCISE_FRAMES = {
 }
 
 
+# Дополнительные упражнения (альтернативы для «🔄 Заменить»).
+try:
+    from extra_exercises import EXTRA as _EXTRA
+except ImportError:  # pragma: no cover
+    from fitness_bot.extra_exercises import EXTRA as _EXTRA
+for _d in _EXTRA:
+    EXERCISE_FRAMES[_d['id']] = (GYM if _d['places'][0] == 'gym' else HOME,
+                                 [(caption, en) for caption, en, _ in _d['frames']])
+
+
 def build_prompt(exercise_id, frame_index, female=False):
     place, frames = EXERCISE_FRAMES[exercise_id]
     _, description = frames[frame_index]

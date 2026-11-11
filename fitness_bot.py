@@ -74,7 +74,7 @@ TZ_NAME = os.environ.get('FITNESS_TZ', 'Europe/Moscow')
 log = logging.getLogger('fitness_bot')
 
 # Версия кода: видна в «🛠 Админ» и в логах запуска — по ней видно, обновился ли бот на хостинге.
-BOT_VERSION = '2026-11-11 · разминка/заминка · ввод веса'
+BOT_VERSION = '2026-11-11 · замена упражнений · +33 упражнения'
 
 
 def now():
@@ -109,10 +109,11 @@ class Exercise:
     bodyweight: bool = False
     unit: str = 'reps'  # reps | sec
     tip: str = ''
+    auto: bool = True  # False — только для замены, в автоматическую программу не попадает
 
 
-def _ex(id, name, group, places, compound=False, bodyweight=False, unit='reps', tip=''):
-    return Exercise(id, name, group, tuple(places), compound, bodyweight, unit, tip)
+def _ex(id, name, group, places, compound=False, bodyweight=False, unit='reps', tip='', auto=True):
+    return Exercise(id, name, group, tuple(places), compound, bodyweight, unit, tip, auto)
 
 
 _EXERCISE_LIST = [
@@ -186,6 +187,13 @@ _EXERCISE_LIST = [
     _ex('dead_bug', 'Мёртвый жук', 'core', [HOME], bodyweight=True, tip='Поясница прижата, двигайся медленно.'),
 ]
 
+try:
+    from extra_exercises import EXTRA as EXTRA_EXERCISES
+except ImportError:  # pragma: no cover
+    from fitness_bot.extra_exercises import EXTRA as EXTRA_EXERCISES
+_EXERCISE_LIST += [_ex(d['id'], d['name'], d['group'], d['places'], d['compound'], d['bodyweight'], d['unit'],
+                       d['tip'], auto=False) for d in EXTRA_EXERCISES]
+
 EXERCISES = {e.id: e for e in _EXERCISE_LIST}
 
 
@@ -224,6 +232,9 @@ START_WEIGHTS = {
     'backpack_press': ('рюкзак 5–8 кг', 'бутылки по 1.5 л'),
     'bottle_ext': ('бутылка 5 л', 'бутылка 1.5–2 л'),
 }
+
+
+START_WEIGHTS.update({d['id']: d['start'] for d in EXTRA_EXERCISES if d['start']})
 
 
 def start_weight(ex, user):
@@ -383,7 +394,7 @@ def prescription(ex, role, goal, level, age='30'):
 
 
 def _pick(group, role, place, used, variant, excluded=frozenset()):
-    base = [e for e in _EXERCISE_LIST if e.group == group and place in e.places]
+    base = [e for e in _EXERCISE_LIST if e.group == group and place in e.places and e.auto]
     allowed = [e for e in base if e.id not in excluded] or base
     pool = [e for e in allowed if e.id not in used] or allowed
     if role == 'main':
@@ -438,10 +449,34 @@ def build_program(goal, level, days, place, gender='m', age='30'):
     return program
 
 
-def user_program(user, place=None):
-    """Программа пользователя. place — место на сегодня (зал/дом), по умолчанию — из анкеты."""
+def base_program(user, place=None):
+    """Программа по анкете, без замен пользователя."""
     return build_program(user['goal'], user['level'], user['days'], place or user['place'],
                          user.get('gender') or 'm', user.get('age') or '30')
+
+
+def user_program(user, place=None, extra_swaps=None):
+    """Программа пользователя с его заменами. place — место на сегодня (зал/дом), по умолчанию — из анкеты."""
+    place = place or user['place']
+    swaps = {**get_swaps(user.get('user_id'), place), **(extra_swaps or {})}
+    return [apply_swaps(day, swaps, user, place) for day in base_program(user, place)]
+
+
+def apply_swaps(day, swaps, user, place):
+    """Заменяет упражнения дня: swaps = {id упражнения из программы: id замены}."""
+    if not swaps:
+        return day
+    planned = list(day.exercises)
+    for i, p in enumerate(planned):
+        new_id = swaps.get(p.exercise.id)
+        ex = EXERCISES.get(new_id)
+        if not ex or new_id == p.exercise.id or place not in ex.places:
+            continue
+        if any(q.exercise.id == new_id for j, q in enumerate(planned) if j != i):
+            continue
+        presc = prescription(ex, p.role, user['goal'], user['level'], user.get('age') or '30')
+        planned[i] = PlannedExercise(ex, p.role, presc)
+    return WorkoutDay(day.title, tuple(planned), day.note)
 
 
 def profile_complete(user):
@@ -537,8 +572,8 @@ def apply_mods(day, mods):
     return WorkoutDay(day.title, tuple(planned), day.note)
 
 
-def plan_day(user, day_index, mods=None, place=None):
-    program = user_program(user, place)
+def plan_day(user, day_index, mods=None, place=None, extra_swaps=None):
+    program = user_program(user, place, extra_swaps)
     return apply_mods(program[day_index % len(program)], mods)
 
 
@@ -710,6 +745,9 @@ def init_db():
             user_id INTEGER, exercise_id TEXT, target REAL, PRIMARY KEY(user_id, exercise_id));
         CREATE TABLE IF NOT EXISTS cycle_log(
             user_id INTEGER, start_date TEXT, PRIMARY KEY(user_id, start_date));
+        CREATE TABLE IF NOT EXISTS user_swaps(
+            user_id INTEGER, place TEXT, original_id TEXT, replacement_id TEXT,
+            PRIMARY KEY(user_id, place, original_id));
         CREATE TABLE IF NOT EXISTS cardio(
             id INTEGER PRIMARY KEY AUTOINCREMENT, workout_id INTEGER, user_id INTEGER, phase TEXT, kind TEXT,
             minutes INTEGER, created_at TEXT);
@@ -814,6 +852,37 @@ def best_e1rm(uid, ex_id, exclude_wid=None):
 def finish_workout_db(wid):
     with connect() as c:
         c.execute('UPDATE workouts SET finished_at=? WHERE id=?', (now().isoformat(timespec='seconds'), wid))
+
+
+def get_swaps(uid, place):
+    """Постоянные замены пользователя для места: {id из программы: id замены}."""
+    if not uid:
+        return {}
+    try:
+        with connect() as c:
+            return {r['original_id']: r['replacement_id'] for r in c.execute(
+                'SELECT original_id, replacement_id FROM user_swaps WHERE user_id=? AND place=?', (uid, place))}
+    except sqlite3.OperationalError:
+        return {}
+
+
+def set_swap(uid, place, original_id, replacement_id):
+    with connect() as c:
+        if not replacement_id or replacement_id == original_id:
+            c.execute('DELETE FROM user_swaps WHERE user_id=? AND place=? AND original_id=?', (uid, place, original_id))
+        else:
+            c.execute('INSERT OR REPLACE INTO user_swaps(user_id,place,original_id,replacement_id) VALUES(?,?,?,?)',
+                      (uid, place, original_id, replacement_id))
+
+
+def count_swaps(uid):
+    with connect() as c:
+        return c.execute('SELECT COUNT(*) FROM user_swaps WHERE user_id=?', (uid,)).fetchone()[0]
+
+
+def clear_swaps(uid):
+    with connect() as c:
+        c.execute('DELETE FROM user_swaps WHERE user_id=?', (uid,))
 
 
 def add_cardio(wid, uid, phase, kind, minutes):
@@ -999,11 +1068,13 @@ def program_text(user):
     if user['level'] == 'novice':
         lines += ['', f'🌱 Первые {2 * user["days"]} тренировок — адаптация: на подход меньше и лёгкие веса.']
     lines.append('')
+    base = base_program(user)
     for i, day in enumerate(program):
         mark = ' ← следующая' if i == user['day_index'] % len(program) else ''
         lines.append(f'<b>День {i + 1}. {html.escape(day.title)}</b>{mark}')
-        for p in day.exercises:
-            line = f'• {p.exercise.name} — {p.presc.text()}'
+        for p, orig in zip(day.exercises, base[i].exercises):
+            swapped = ' 🔄' if p.exercise.id != orig.exercise.id else ''
+            line = f'• {p.exercise.name}{swapped} — {p.presc.text()}'
             if user['level'] == 'novice' and start_weight(p.exercise, user):
                 line += f' (старт: {start_weight(p.exercise, user)})'
             lines.append(line)
@@ -1017,7 +1088,7 @@ def program_text(user):
 
 
 def exercise_card(user, wk):
-    day = plan_day(user, wk['day'], wk.get('mods'), wk.get('place'))
+    day = plan_day(user, wk['day'], wk.get('mods'), wk.get('place'), wk.get('swaps'))
     p = day.exercises[wk['ex_pos']]
     prev = previous_sets(user['user_id'], p.exercise.id, wk['wid'])
     done = [s for s in workout_sets(wk['wid']) if s['exercise_id'] == p.exercise.id]
@@ -1043,7 +1114,7 @@ def exercise_card(user, wk):
         lines.append(f'<b>Подход {wk["set_no"]}/{p.presc.sets}</b> — нажми, сколько повторов сделал(а), '
                      f'или отправь <code>{fmt_w(weight) + " " if weight else ""}{p.presc.hi}</code>.')
     rows = set_buttons(p, weight, bool(done))
-    rows.append([('📖 Техника', f't:{p.exercise.id}')])
+    rows.append([('📖 Техника', f't:{p.exercise.id}'), ('🔄 Заменить', 'sw:l')])
     rows.append([('⏭ Следующее упражнение', 'w:next'), ('🏁 Завершить', 'w:finish')])
     return '\n'.join(lines), kb(rows)
 
@@ -1055,6 +1126,7 @@ EQUIPMENT = {
     'dumbbell': ('гантели', 'вес одной гантели', (1, 2)),
     'machine': ('тренажёр', 'вес, выставленный на тренажёре', (2.5, 5)),
     'plates': ('блины', 'вес блинов на платформе', (5, 10)),
+    'smith': ('тренажёр Смита', 'общий вес: блины + гриф Смита (обычно 15–20 кг)', (2.5, 5)),
     'load': ('рюкзак/бутылки', 'вес рюкзака или бутылок', (0.5, 1)),
     'bodyweight': ('свой вес', 'дополнительный вес (пояс, жилет, рюкзак); 0 — без отягощения', (2.5, 5)),
 }
@@ -1068,6 +1140,7 @@ EXERCISE_EQUIPMENT = {
     'load': ('backpack_curl', 'backpack_row', 'backpack_press', 'bottle_ext'),
 }
 _EQUIPMENT_BY_EX = {ex_id: eq for eq, ids in EXERCISE_EQUIPMENT.items() for ex_id in ids}
+_EQUIPMENT_BY_EX.update({d['id']: d['equipment'] for d in EXTRA_EXERCISES})
 BAR_WEIGHTS = (20, 15, 10, 7)
 
 
@@ -1327,7 +1400,7 @@ async def send_technique(message, ex, user):
 
 async def send_card(message, user, wk, prefix=''):
     """Карточка упражнения; перед первым подходом — картинки техники."""
-    day = plan_day(user, wk['day'], wk.get('mods'), wk.get('place'))
+    day = plan_day(user, wk['day'], wk.get('mods'), wk.get('place'), wk.get('swaps'))
     ex = day.exercises[wk['ex_pos']].exercise
     if wk['set_no'] == 1 and not prefix:
         await send_photos(message, ex, user.get('gender') or 'm')
@@ -1343,7 +1416,7 @@ def cardio_card_text(user, wk, phase):
     ag = age_group(user.get('age'))
     lo, hi, _ = cardio_minutes(phase, user['goal'], ag)
     p_lo, p_hi = pulse_range(phase, user['goal'], user.get('age'))
-    day = plan_day(user, wk['day'], wk.get('mods'), wk.get('place'))
+    day = plan_day(user, wk['day'], wk.get('mods'), wk.get('place'), wk.get('swaps'))
     if phase == 'warmup':
         lines = ['<b>🔥 Разминка — 2 шага</b>', '',
                  f'<b>1. Кардио {lo}–{hi} мин</b> — выбери тренажёр ниже.',
@@ -1447,11 +1520,120 @@ async def cardio_callback(data, update, context):
 
 
 # ======================================================================
+# Замена упражнений
+# ======================================================================
+
+PLACE_CODE = {'g': GYM, 'h': HOME}
+
+
+def alternatives(day, pos, place):
+    """Упражнения на ту же группу мышц, доступные в этом месте и ещё не входящие в день."""
+    current = day.exercises[pos]
+    used = {p.exercise.id for p in day.exercises}
+    pool = [e for e in _EXERCISE_LIST if e.group == current.exercise.group and place in e.places and e.id not in used]
+    # Для базового упражнения сначала базовые варианты, для изолирующего — изолирующие.
+    pool.sort(key=lambda e: e.compound != current.exercise.compound)
+    return pool
+
+
+def alternative_label(ex):
+    eq = EQUIPMENT[equipment_of(ex)][0]
+    return f'{ex.name} · {eq}'
+
+
+async def swap_callback(data, update, context):
+    """Замена упражнения во время тренировки: sw:l — список, sw:p:<id> — выбор, sw:t/sw:f:<id> — сегодня/навсегда."""
+    message = update.callback_query.message
+    uid = update.effective_user.id
+    wk = context.user_data.get('wk')
+    user = get_user(uid)
+    if not wk or wk.get('stage', 'main') != 'main' or not profile_complete(user):
+        return
+    place = wk.get('place') or user['place']
+    day = plan_day(user, wk['day'], wk.get('mods'), place, wk.get('swaps'))
+    base_ex = base_program(user, place)[wk['day'] % user['days']].exercises[wk['ex_pos']].exercise
+    current = day.exercises[wk['ex_pos']].exercise
+    parts = data.split(':')
+    if parts[1] == 'l':
+        options = alternatives(day, wk['ex_pos'], place)
+        rows = [[(alternative_label(e), f'sw:p:{e.id}')] for e in options]
+        if current.id != base_ex.id:
+            rows.insert(0, [(f'↩️ Как в программе: {base_ex.name}', f'sw:p:{base_ex.id}')])
+        if not rows:
+            await message.reply_text('Для этой группы мышц здесь нет других вариантов.')
+            return
+        await message.reply_text(f'🔄 Чем заменить «{current.name}»? ({GROUPS[current.group]})',
+                                 reply_markup=kb(rows))
+    elif parts[1] == 'p' and len(parts) == 3 and parts[2] in EXERCISES:
+        new = EXERCISES[parts[2]]
+        await message.reply_text(f'«{current.name}» → «{new.name}». Заменить:', reply_markup=kb(
+            [[('📅 Только сегодня', f'sw:t:{new.id}'), ('♾ Навсегда в программе', f'sw:f:{new.id}')]]))
+    elif parts[1] in ('t', 'f') and len(parts) == 3 and parts[2] in EXERCISES:
+        new = EXERCISES[parts[2]]
+        if place not in new.places:
+            return
+        swaps = dict(wk.get('swaps') or {})
+        if parts[1] == 'f':
+            set_swap(uid, place, base_ex.id, new.id)
+            swaps.pop(base_ex.id, None)
+            scope = 'навсегда — так будет и в следующих тренировках'
+        else:
+            swaps[base_ex.id] = new.id
+            scope = 'только на эту тренировку'
+        wk['swaps'] = swaps
+        wk['set_no'] = 1
+        context.user_data['wk'] = wk
+        cancel_rest(uid)
+        await message.reply_text(f'✅ Заменил «{current.name}» на «{new.name}» {scope}.')
+        await send_card(message, user, wk)
+
+
+async def replace_program_callback(data, update, context):
+    """Замена в программе (вне тренировки): rp → день → упражнение → вариант → навсегда."""
+    message = update.callback_query.message
+    uid = update.effective_user.id
+    user = get_user(uid)
+    if not profile_complete(user):
+        return
+    parts = data.split(':')
+    if data == 'rp':
+        code = user['place'][0]
+        await message.reply_text('🔄 В каком дне заменить упражнение?', reply_markup=kb(
+            [[(f'День {i + 1}: {d.title}', f'rp:d:{i}:{code}')] for i, d in enumerate(user_program(user))]))
+        return
+    if len(parts) < 4 or not parts[2].isdigit() or parts[3] not in PLACE_CODE:
+        return
+    day_index, place = int(parts[2]) % user['days'], PLACE_CODE[parts[3]]
+    day = user_program(user, place)[day_index]
+    base = base_program(user, place)[day_index]
+    if parts[1] == 'd':
+        rows = [[(f'{i + 1}. {p.exercise.name}', f'rp:e:{day_index}:{parts[3]}:{i}')] for i, p in enumerate(day.exercises)]
+        await message.reply_text(f'<b>{html.escape(day.title)}</b> ({PLACE_SHORT[place]}) — какое упражнение заменить?',
+                                 parse_mode=ParseMode.HTML, reply_markup=kb(rows))
+    elif parts[1] == 'e' and len(parts) == 5 and parts[4].isdigit() and int(parts[4]) < len(day.exercises):
+        pos = int(parts[4])
+        current, orig = day.exercises[pos].exercise, base.exercises[pos].exercise
+        rows = [[(alternative_label(e), f'rp:n:{day_index}:{parts[3]}:{pos}:{e.id}')]
+                for e in alternatives(day, pos, place)]
+        if current.id != orig.id:
+            rows.insert(0, [(f'↩️ Как в программе: {orig.name}', f'rp:n:{day_index}:{parts[3]}:{pos}:{orig.id}')])
+        await message.reply_text(f'🔄 Чем заменить «{current.name}»? ({GROUPS[current.group]})', reply_markup=kb(rows))
+    elif parts[1] == 'n' and len(parts) == 6 and parts[4].isdigit() and parts[5] in EXERCISES \
+            and int(parts[4]) < len(day.exercises):
+        pos, new = int(parts[4]), EXERCISES[parts[5]]
+        if place not in new.places:
+            return
+        set_swap(uid, place, base.exercises[pos].exercise.id, new.id)
+        await message.reply_text(f'✅ Готово: в программе ({PLACE_SHORT[place]}) теперь «{new.name}» вместо '
+                                 f'«{day.exercises[pos].exercise.name}». Вернуть исходные — в «{BTN_SETTINGS}».')
+
+
+# ======================================================================
 # Ввод веса
 # ======================================================================
 
 def _current_planned(user, wk):
-    return plan_day(user, wk['day'], wk.get('mods'), wk.get('place')).exercises[wk['ex_pos']]
+    return plan_day(user, wk['day'], wk.get('mods'), wk.get('place'), wk.get('swaps')).exercises[wk['ex_pos']]
 
 
 async def set_current_weight(message, context, uid, weight, note=''):
@@ -1682,7 +1864,9 @@ async def settings(update: Update, context: ContextTypes.DEFAULT_TYPE):
         parse_mode=ParseMode.HTML,
         reply_markup=kb([[('🔄 Заполнить анкету заново', 's:redo')],
                          [(f'📍 Место по умолчанию: {PLACE_SHORT[user["place"]]}', 's:place')],
-                         [(f'Таймер отдыха: {timer}', 's:timer')]]))
+                         [(f'Таймер отдыха: {timer}', 's:timer')]]
+                        + ([[(f'↩️ Вернуть исходные упражнения ({count_swaps(user["user_id"])})', 's:unswap')]]
+                           if count_swaps(user['user_id']) else [])))
 
 
 async def show_today(update: Update, context: ContextTypes.DEFAULT_TYPE, day_index=None):
@@ -1711,6 +1895,7 @@ async def show_today(update: Update, context: ContextTypes.DEFAULT_TYPE, day_ind
     rows.append([({GYM: '🏢 Сегодня в зале', HOME: '🏠 Сегодня дома'}[other], f'w:place:{day_index}:{other}')])
     rows.append([('🔀 Выбрать другой день', 'w:pick')])
     rows += technique_rows(plan_day(user, day_index, place=place))
+    rows.append([('🔄 Заменить упражнение', f'rp:d:{day_index}:{place[0]}')])
     await update.effective_message.reply_text(day_overview_text(user, day_index, mods, place), parse_mode=ParseMode.HTML,
                                               reply_markup=kb(rows))
 
@@ -1728,7 +1913,8 @@ async def show_program(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = await need_profile(update, context)
     if user:
         await update.effective_message.reply_text(program_text(user), parse_mode=ParseMode.HTML,
-                                                  reply_markup=kb([[('📖 Техника упражнений', 'tp')]]))
+                                                  reply_markup=kb([[('📖 Техника упражнений', 'tp')],
+                                                                   [('🔄 Заменить упражнение', 'rp')]]))
 
 
 async def show_cycle(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -1925,7 +2111,7 @@ async def log_set(update: Update, context: ContextTypes.DEFAULT_TYPE, weight, re
     uid = update.effective_user.id
     wk = context.user_data['wk']
     user = get_user(uid)
-    day = plan_day(user, wk['day'], wk.get('mods'), wk.get('place'))
+    day = plan_day(user, wk['day'], wk.get('mods'), wk.get('place'), wk.get('swaps'))
     p = day.exercises[wk['ex_pos']]
     add_set(wk['wid'], uid, p.exercise.id, wk['set_no'], weight, reps)
     wk.setdefault('weights', {})[p.exercise.id] = weight
@@ -1956,7 +2142,7 @@ async def next_exercise(message, context, uid, rest=None):
     if not wk:
         return
     user = get_user(uid)
-    day = plan_day(user, wk['day'], wk.get('mods'), wk.get('place'))
+    day = plan_day(user, wk['day'], wk.get('mods'), wk.get('place'), wk.get('swaps'))
     wk['ex_pos'] += 1
     wk['set_no'] = 1
     context.user_data['wk'] = wk
@@ -1982,6 +2168,13 @@ async def callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # --- Настройки ---
     if data == 's:redo':
         await ask_gender(message, context)
+    elif data == 's:unswap':
+        clear_swaps(uid)
+        await message.edit_text(f'↩️ Все замены отменены — программа снова как по анкете. Смотри «{BTN_PROGRAM}».')
+    elif data.startswith('sw:'):
+        await swap_callback(data, update, context)
+    elif data == 'rp' or data.startswith('rp:'):
+        await replace_program_callback(data, update, context)
     elif data == 's:place':
         user = get_user(uid)
         if profile_complete(user) and not context.user_data.get('wk'):
@@ -2040,7 +2233,7 @@ async def callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         wk = context.user_data.get('wk')
         user = get_user(uid)
         if wk and profile_complete(user):
-            ex = plan_day(user, wk['day'], wk.get('mods'), wk.get('place')).exercises[wk['ex_pos']].exercise
+            ex = plan_day(user, wk['day'], wk.get('mods'), wk.get('place'), wk.get('swaps')).exercises[wk['ex_pos']].exercise
             await send_technique(message, ex, user)
 
     # --- Техника ---
@@ -2264,7 +2457,7 @@ async def text_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if parsed and parsed[0] == 0 and '.' not in text and ',' not in text:
             # Одно число — это повторы с текущим выбранным весом.
             user = get_user(uid)
-            p = plan_day(user, wk['day'], wk.get('mods'), wk.get('place')).exercises[wk['ex_pos']]
+            p = plan_day(user, wk['day'], wk.get('mods'), wk.get('place'), wk.get('swaps')).exercises[wk['ex_pos']]
             parsed = (current_weight(user, wk, p), parsed[1])
         if not parsed:
             await message.reply_text('Не понял подход. Нажми кнопку с числом повторов или отправь «вес повторы», '
@@ -2298,7 +2491,9 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         f'• «{BTN_GOALS}» — цели по весу тела и рабочим весам.\n'
         f'• «{BTN_CYCLE}» — учёт цикла (женский профиль): нагрузка подстраивается под фазу.\n'
         f'• «{BTN_SETTINGS}» — заполнить анкету заново, таймер отдыха.\n'
-        '• «📖 Техника» — у каждого упражнения: как выполнять, дыхание, частые ошибки и фото.\n\n'
+        '• «📖 Техника» — у каждого упражнения: как выполнять, дыхание, частые ошибки и фото.\n'
+        '• «🔄 Заменить» — замени упражнение на другое для той же группы мышц (например, жим лёжа — на жим '
+        'в тренажёре): только сегодня или навсегда. Вернуть исходные — в настройках.\n\n'
         'Команды: /today /program /progress /weight /goals /cycle /settings /finish /cancel',
         parse_mode=ParseMode.HTML, reply_markup=menu_for(get_user(update.effective_user.id)))
 

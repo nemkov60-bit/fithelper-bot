@@ -395,6 +395,15 @@ FRAMES_RU = {
 }
 
 
+# Дополнительные упражнения (альтернативы для «🔄 Заменить»).
+try:
+    from extra_exercises import EXTRA as _EXTRA
+except ImportError:  # pragma: no cover
+    from fitness_bot.extra_exercises import EXTRA as _EXTRA
+for _d in _EXTRA:
+    FRAMES_RU[_d['id']] = [ru for _, _, ru in _d['frames']]
+
+
 def _place_ru(exercise_id):
     from exercise_images import EXERCISE_FRAMES, GYM
     place, _ = EXERCISE_FRAMES[exercise_id]

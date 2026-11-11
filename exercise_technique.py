@@ -503,3 +503,12 @@ TECHNIQUE = {
         ['Поясница отрывается от пола.', 'Слишком быстрые движения.'],
     ),
 }
+
+
+# Дополнительные упражнения (альтернативы для «🔄 Заменить»).
+try:
+    from extra_exercises import EXTRA as _EXTRA
+except ImportError:  # pragma: no cover
+    from fitness_bot.extra_exercises import EXTRA as _EXTRA
+for _d in _EXTRA:
+    TECHNIQUE[_d['id']] = _d['tech']
