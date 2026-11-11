@@ -74,7 +74,7 @@ TZ_NAME = os.environ.get('FITNESS_TZ', 'Europe/Moscow')
 log = logging.getLogger('fitness_bot')
 
 # Версия кода: видна в «🛠 Админ» и в логах запуска — по ней видно, обновился ли бот на хостинге.
-BOT_VERSION = '2026-11-11 · замена упражнений · +33 упражнения'
+BOT_VERSION = '2026-11-11 · групповые тренировки'
 
 
 def now():
@@ -543,7 +543,7 @@ def today_mods(user, finished_count=None, standard=False):
     """Поправки к программе на сегодня: адаптация новичка и фаза цикла."""
     mods = {'sets': 0, 'rest': 0, 'no_progress': False, 'notes': []}
     if finished_count is None:
-        finished_count = len(finished_workouts(user['user_id']))
+        finished_count = len(finished_workouts(user['user_id'], kind='strength'))
     if user['level'] == 'novice' and finished_count < 2 * user['days']:
         mods['sets'] -= 1
         mods['notes'].append(
@@ -714,6 +714,9 @@ def advice(ex, presc, prev_sets, gender='m', no_progress=False, start_hint=''):
 # База данных
 # ======================================================================
 
+# kind: 'strength' — тренировка по программе, 'group' — групповая (group_type, group_minutes).
+WORKOUT_COLUMNS = {'kind': "TEXT DEFAULT 'strength'", 'group_type': 'TEXT', 'group_minutes': 'INTEGER'}
+
 USER_COLUMNS = {
     'gender': 'TEXT', 'age': 'TEXT', 'cycle_tracking': 'INTEGER DEFAULT 0', 'period_start': 'TEXT',
     'cycle_len': 'INTEGER DEFAULT 28', 'period_len': 'INTEGER DEFAULT 5',
@@ -761,6 +764,10 @@ def init_db():
         for name, decl in USER_COLUMNS.items():
             if name not in have:
                 c.execute(f'ALTER TABLE users ADD COLUMN {name} {decl}')
+        have = {r['name'] for r in c.execute('PRAGMA table_info(workouts)')}
+        for name, decl in WORKOUT_COLUMNS.items():
+            if name not in have:
+                c.execute(f'ALTER TABLE workouts ADD COLUMN {name} {decl}')
 
 
 def get_user(uid):
@@ -811,10 +818,27 @@ def log_period_start(uid, start):
             c.execute('UPDATE users SET cycle_len=? WHERE user_id=?', (round(sum(gaps) / len(gaps)), uid))
 
 
-def start_workout(uid, day_index, title):
+def start_workout(uid, day_index, title, kind='strength', group_type=None):
     with connect() as c:
-        cur = c.execute('INSERT INTO workouts(user_id,day_index,title,started_at) VALUES(?,?,?,?)',
-                        (uid, day_index, title, now().isoformat(timespec='seconds')))
+        cur = c.execute('INSERT INTO workouts(user_id,day_index,title,started_at,kind,group_type) VALUES(?,?,?,?,?,?)',
+                        (uid, day_index, title, now().isoformat(timespec='seconds'), kind, group_type))
+        return cur.lastrowid
+
+
+def set_group_minutes(wid, minutes):
+    with connect() as c:
+        c.execute('UPDATE workouts SET group_minutes=? WHERE id=?', (minutes, wid))
+
+
+def log_past_group(uid, group_type, minutes):
+    """Групповая тренировка, которая уже прошла: сразу завершённая запись."""
+    end = now()
+    start = end - timedelta(minutes=minutes)
+    with connect() as c:
+        cur = c.execute('''INSERT INTO workouts(user_id,day_index,title,started_at,finished_at,kind,group_type,group_minutes)
+                           VALUES(?,?,?,?,?,?,?,?)''',
+                        (uid, -1, GROUP_TYPES[group_type][0], start.isoformat(timespec='seconds'),
+                         end.isoformat(timespec='seconds'), 'group', group_type, minutes))
         return cur.lastrowid
 
 
@@ -917,9 +941,12 @@ def delete_workout(wid):
         c.execute('DELETE FROM workouts WHERE id=?', (wid,))
 
 
-def finished_workouts(uid, since=None, limit=None):
+def finished_workouts(uid, since=None, limit=None, kind=None):
     q = 'SELECT * FROM workouts WHERE user_id=? AND finished_at IS NOT NULL'
     args = [uid]
+    if kind:
+        q += " AND COALESCE(kind, 'strength')=?"
+        args.append(kind)
     if since:
         q += ' AND finished_at>=?'
         args.append(since.isoformat(timespec='seconds'))
@@ -1416,15 +1443,19 @@ def cardio_card_text(user, wk, phase):
     ag = age_group(user.get('age'))
     lo, hi, _ = cardio_minutes(phase, user['goal'], ag)
     p_lo, p_hi = pulse_range(phase, user['goal'], user.get('age'))
-    day = plan_day(user, wk['day'], wk.get('mods'), wk.get('place'), wk.get('swaps'))
+    group = wk.get('kind') == 'group'
+    day = None if group else plan_day(user, wk['day'], wk.get('mods'), wk.get('place'), wk.get('swaps'))
     if phase == 'warmup':
         lines = ['<b>🔥 Разминка — 2 шага</b>', '',
                  f'<b>1. Кардио {lo}–{hi} мин</b> — выбери тренажёр ниже.',
                  f'Темп лёгкий: можешь свободно говорить. Пульс ~{p_lo}–{p_hi} уд/мин.', '',
                  '<b>2. Суставная гимнастика</b> (2–3 мин):']
         lines += [f'• {item}' for item in JOINT_WARMUP]
-        first = day.exercises[0]
-        if equipment_of(first.exercise) != 'bodyweight':
+        first = day.exercises[0] if day else None
+        if group:
+            lines += ['', f'💡 Потом — на занятие «{GROUP_TYPES[wk["group_type"]][0]}». Разминка поможет войти '
+                          'в темп с первых минут.']
+        elif equipment_of(first.exercise) != 'bodyweight':
             lines += ['', f'💡 Перед «{first.exercise.name}» сделай 1–2 разминочных подхода с лёгким весом.']
     else:
         tempo = ('ровный умеренный темп — это работа на жиросжигание' if user['goal'] == 'fat_loss'
@@ -1432,7 +1463,8 @@ def cardio_card_text(user, wk, phase):
         lines = ['<b>🧊 Заминка — 2 шага</b>', '',
                  f'<b>1. Кардио {lo}–{hi} мин</b> — {tempo}. Пульс ~{p_lo}–{p_hi} уд/мин.', '',
                  '<b>2. Растяжка</b> мышц, которые работали сегодня — по 20–30 сек, без рывков:']
-        groups = list(dict.fromkeys(p.exercise.group for p in day.exercises))
+        groups = GROUP_TYPES[wk['group_type']][1] if group else \
+            list(dict.fromkeys(p.exercise.group for p in day.exercises))
         lines += [f'• {STRETCHES[g]}' for g in groups if g in STRETCHES]
     lines += ['', 'Выбери тренажёр:']
     return '\n'.join(lines)
@@ -1461,8 +1493,12 @@ async def start_cardio_stage(message, context, user, phase):
     wk['stage'] = phase
     wk.pop('cardio_kind', None)
     context.user_data['wk'] = wk
-    if phase == 'cooldown':
+    if phase == 'cooldown' and wk.get('kind') == 'group':
+        await message.reply_text('💪 Занятие позади! Осталась заминка — она ускорит восстановление.')
+    elif phase == 'cooldown':
         await message.reply_text('💪 Основная часть позади! Осталась заминка — она ускорит восстановление.')
+    elif wk.get('kind') == 'group':
+        await message.reply_text('Отлично! 🔥 Перед групповой тренировкой — короткая разминка.')
     else:
         await message.reply_text('Поехали! 🔥 Начинаем с разминки — она разогреет мышцы и суставы и снизит риск травм.')
     await send_cardio_card(message, context, user, phase)
@@ -1480,7 +1516,11 @@ async def end_cardio_stage(message, context, user):
     wk = context.user_data['wk']
     phase = wk.get('stage')
     wk.pop('cardio_kind', None)
-    if phase == 'warmup':
+    if phase == 'warmup' and wk.get('kind') == 'group':
+        wk['stage'] = 'group'
+        context.user_data['wk'] = wk
+        await send_group_card(message, wk)
+    elif phase == 'warmup':
         wk['stage'] = 'main'
         context.user_data['wk'] = wk
         await message.reply_text('✅ Разминка готова. Переходим к основной части!')
@@ -1517,6 +1557,122 @@ async def cardio_callback(data, update, context):
         await send_cardio_card(message, context, user, phase)
     elif parts[1] == 'skip':
         await end_cardio_stage(message, context, user)
+
+
+# ======================================================================
+# Групповые тренировки
+# ======================================================================
+
+# id: (название, мышцы для растяжки после занятия)
+GROUP_TYPES = {
+    'yoga': ('🧘 Йога', ['back', 'hams', 'shoulders', 'core']),
+    'pilates': ('🤸 Пилатес', ['core', 'glutes', 'back']),
+    'stretch': ('🙆 Стретчинг', ['hams', 'quads', 'back', 'shoulders']),
+    'functional': ('🏋️ Функциональный тренинг', ['quads', 'glutes', 'chest', 'back', 'core']),
+    'hiit': ('🔥 Кроссфит / HIIT', ['quads', 'glutes', 'shoulders', 'back', 'core']),
+    'pump': ('💪 Body Pump / силовая аэробика', ['quads', 'chest', 'back', 'shoulders']),
+    'cycle': ('🚴 Сайкл', ['quads', 'hams', 'glutes', 'calves']),
+    'dance': ('💃 Танцы / Зумба', ['quads', 'calves', 'glutes', 'core']),
+    'step': ('🪜 Степ-аэробика', ['quads', 'glutes', 'calves']),
+    'boxing': ('🥊 Бокс / единоборства', ['shoulders', 'chest', 'back', 'core']),
+    'trx': ('🧗 TRX', ['back', 'chest', 'core', 'glutes']),
+    'aqua': ('🏊 Аквааэробика / бассейн', ['shoulders', 'back', 'quads']),
+    'other': ('👥 Другая групповая', ['quads', 'back', 'shoulders', 'core']),
+}
+GROUP_MINUTES = (30, 45, 55, 60, 90)
+
+
+def group_types_kb():
+    buttons = [(name, f'gr:t:{key}') for key, (name, _) in GROUP_TYPES.items()]
+    return kb([buttons[i:i + 2] for i in range(0, len(buttons), 2)])
+
+
+async def send_group_card(message, wk, resume=False):
+    name = GROUP_TYPES[wk['group_type']][0]
+    head = (f'👥 Идёт занятие <b>{html.escape(name)}</b>.' if resume
+            else f'✅ Разминка готова. Иди на занятие <b>{html.escape(name)}</b> 💪')
+    await message.reply_text(
+        f'{head}\n\n'
+        'Пей воду и работай в своём темпе. Когда занятие закончится — нажми его длительность '
+        '(или отправь число минут), и перейдём к заминке.',
+        parse_mode=ParseMode.HTML,
+        reply_markup=kb([[(f'{m} мин', f'gr:m:{m}') for m in GROUP_MINUTES]]))
+
+
+async def end_group_class(message, context, user, minutes):
+    wk = context.user_data['wk']
+    set_group_minutes(wk['wid'], minutes)
+    wk['group_minutes'] = minutes
+    context.user_data['wk'] = wk
+    await start_cardio_stage(message, context, user, 'cooldown')
+
+
+async def finish_group_workout(message, wk, user, cardio):
+    name = GROUP_TYPES[wk['group_type']][0]
+    if not wk.get('group_minutes') and not cardio:
+        delete_workout(wk['wid'])
+        await message.reply_text('Групповая тренировка отменена — ничего не отмечено.', reply_markup=menu_for(user))
+        return
+    finish_workout_db(wk['wid'])
+    lines = ['<b>🏁 Групповая тренировка засчитана! Отличная работа 💪</b>', '',
+             f'{name} — {wk.get("group_minutes") or "?"} мин']
+    lines += [cardio_line(r) for r in cardio]
+    await message.reply_text('\n'.join(lines + ['', week_progress_line(user)]), parse_mode=ParseMode.HTML,
+                             reply_markup=menu_for(user))
+
+
+def week_progress_line(user):
+    week = finished_workouts(user['user_id'], since=now() - timedelta(days=7))
+    return f'На этой неделе: {len(week)} из {user["days"]} тренировок {progress_bar(len(week) / user["days"])}'
+
+
+async def save_past_group(message, uid, group_type, minutes):
+    user = get_user(uid)
+    log_past_group(uid, group_type, minutes)
+    await message.reply_text(
+        f'✅ Отметил: <b>{html.escape(GROUP_TYPES[group_type][0])}</b> — {minutes} мин.\n\n{week_progress_line(user)}',
+        parse_mode=ParseMode.HTML, reply_markup=menu_for(user))
+
+
+async def group_callback(data, update, context):
+    """gr:menu → gr:t:<тип> → gr:go:<тип> (сейчас, с разминкой) | gr:log:<тип> (уже прошла) → минуты."""
+    message = update.callback_query.message
+    uid = update.effective_user.id
+    user = get_user(uid)
+    if not profile_complete(user):
+        return
+    parts = data.split(':')
+    wk = context.user_data.get('wk')
+    if data == 'gr:menu':
+        if wk:
+            await message.reply_text('Сначала заверши текущую тренировку.')
+            return
+        await message.reply_text('👥 Какая групповая тренировка?', reply_markup=group_types_kb())
+    elif parts[1] == 't' and len(parts) == 3 and parts[2] in GROUP_TYPES:
+        name = GROUP_TYPES[parts[2]][0]
+        await message.reply_text(f'<b>{html.escape(name)}</b>', parse_mode=ParseMode.HTML, reply_markup=kb(
+            [[('▶️ Иду сейчас — с разминкой и заминкой', f'gr:go:{parts[2]}')],
+             [('✅ Уже была — просто отметить', f'gr:log:{parts[2]}')]]))
+    elif parts[1] == 'go' and len(parts) == 3 and parts[2] in GROUP_TYPES:
+        if wk:
+            await message.reply_text('Сначала заверши текущую тренировку.')
+            return
+        name = GROUP_TYPES[parts[2]][0]
+        wid = start_workout(uid, -1, name, kind='group', group_type=parts[2])
+        context.user_data['wk'] = {'wid': wid, 'kind': 'group', 'group_type': parts[2], 'day': user['day_index'],
+                                   'place': place_today(user, context.user_data), 'stage': 'warmup',
+                                   'ex_pos': 0, 'set_no': 1, 'started': now().isoformat(timespec='seconds')}
+        context.user_data.pop('await', None)
+        await start_cardio_stage(message, context, user, 'warmup')
+    elif parts[1] == 'log' and len(parts) == 3 and parts[2] in GROUP_TYPES:
+        context.user_data['await'] = f'group_log:{parts[2]}'
+        await message.reply_text('Сколько длилось занятие? Нажми или отправь число минут.', reply_markup=kb(
+            [[(f'{m} мин', f'gr:lm:{parts[2]}:{m}') for m in GROUP_MINUTES]]))
+    elif parts[1] == 'lm' and len(parts) == 4 and parts[2] in GROUP_TYPES and parts[3].isdigit():
+        context.user_data.pop('await', None)
+        await save_past_group(message, uid, parts[2], int(parts[3]))
+    elif parts[1] == 'm' and len(parts) == 3 and parts[2].isdigit() and wk and wk.get('stage') == 'group':
+        await end_group_class(message, context, user, int(parts[2]))
 
 
 # ======================================================================
@@ -1878,6 +2034,8 @@ async def show_today(update: Update, context: ContextTypes.DEFAULT_TYPE, day_ind
         if wk.get('stage', 'main') in ('warmup', 'cooldown'):
             await update.effective_message.reply_text('Тренировка уже идёт — продолжаем!')
             await send_cardio_card(update.effective_message, context, user, wk['stage'])
+        elif wk.get('stage') == 'group':
+            await send_group_card(update.effective_message, wk, resume=True)
         else:
             await send_card(update.effective_message, user, wk, prefix='Тренировка уже идёт — продолжаем!\n\n')
         return
@@ -1893,7 +2051,7 @@ async def show_today(update: Update, context: ContextTypes.DEFAULT_TYPE, day_ind
                 [('💪 Чувствую себя отлично — обычная', f'w:start:{day_index}:std')]]
     other = HOME if place == GYM else GYM
     rows.append([({GYM: '🏢 Сегодня в зале', HOME: '🏠 Сегодня дома'}[other], f'w:place:{day_index}:{other}')])
-    rows.append([('🔀 Выбрать другой день', 'w:pick')])
+    rows.append([('🔀 Выбрать другой день', 'w:pick'), ('👥 Групповая', 'gr:menu')])
     rows += technique_rows(plan_day(user, day_index, place=place))
     rows.append([('🔄 Заменить упражнение', f'rp:d:{day_index}:{place[0]}')])
     await update.effective_message.reply_text(day_overview_text(user, day_index, mods, place), parse_mode=ParseMode.HTML,
@@ -1937,13 +2095,27 @@ async def show_progress(update: Update, context: ContextTypes.DEFAULT_TYPE):
     total = finished_workouts(uid)
     week = finished_workouts(uid, since=t - timedelta(days=7))
     month = finished_workouts(uid, since=t - timedelta(days=30))
+    group_month = [w for w in month if w.get('kind') == 'group']
+    group_total = sum(1 for w in total if w.get('kind') == 'group')
     lines = ['<b>📈 Прогресс</b>', '',
-             f'Тренировок всего: <b>{len(total)}</b>',
+             f'Тренировок всего: <b>{len(total)}</b>' + (f' (из них групповых: {group_total})' if group_total else ''),
              f'За 30 дней: <b>{len(month)}</b>',
              f'За 7 дней: <b>{len(week)}</b> из {user["days"]} запланированных',
-             progress_bar(len(week) / user['days']),
+             progress_bar(len(week) / user['days'])]
+    if group_month:
+        counts = {}
+        for w in group_month:
+            counts[w.get('group_type')] = counts.get(w.get('group_type'), 0) + 1
+        kinds = ', '.join(f'{GROUP_TYPES.get(k, ("👥 Групповая",))[0]} ×{n}' for k, n in counts.items())
+        minutes = sum(w.get('group_minutes') or 0 for w in group_month)
+        lines.append(f'👥 Групповые за 30 дней: <b>{len(group_month)}</b> ({minutes} мин) — {kinds}')
+    lines += [
              f'🏃 Кардио за 7 дней: <b>{cardio_minutes_since(uid, t - timedelta(days=7))} мин</b>', '']
-    if total:
+    if total and total[0].get('kind') == 'group':
+        last = total[0]
+        lines += [f'Последняя тренировка: {last["finished_at"][:10]} — {html.escape(last["title"])}, '
+                  f'{last.get("group_minutes") or "?"} мин', '']
+    elif total:
         last = total[0]
         sets = workout_sets(last['id'])
         tonnage = sum(s['weight'] * s['reps'] for s in sets
@@ -1984,6 +2156,8 @@ def history_text(uid):
         start_dt, end_dt = datetime.fromisoformat(w['started_at']), datetime.fromisoformat(w['finished_at'])
         minutes = max(1, int((end_dt - start_dt).total_seconds() // 60))
         lines.append(f'<b>{w["finished_at"][:10]} — {html.escape(w["title"])}</b> ({minutes} мин)')
+        if w.get('kind') == 'group':
+            lines.append(f'• Занятие: {w.get("group_minutes") or "?"} мин')
         by_ex = {}
         for s in workout_sets(w['id']):
             by_ex.setdefault(s['exercise_id'], []).append(s)
@@ -2078,6 +2252,9 @@ async def finish_workout(message, context, uid):
         return
     sets = workout_sets(wk['wid'])
     cardio = workout_cardio(wk['wid'])
+    if wk.get('kind') == 'group':
+        await finish_group_workout(message, wk, user, cardio)
+        return
     if not sets and not cardio:
         delete_workout(wk['wid'])
         await message.reply_text('Тренировка отменена — ни одного подхода не записано.', reply_markup=menu_for(user))
@@ -2274,6 +2451,8 @@ async def callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await start_cardio_stage(message, context, get_user(uid), 'cooldown')
         else:
             await finish_workout(message, context, uid)
+    elif data.startswith('gr:'):
+        await group_callback(data, update, context)
     elif data.startswith('wu:'):
         await cardio_callback(data, update, context)
     elif data.startswith('ws:'):
@@ -2445,7 +2624,21 @@ async def text_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             context.user_data.pop('await', None)
             await set_current_weight(message, context, uid, total, note)
             return
+    if (awaiting or '').startswith('group_log:'):
+        group_type = awaiting.split(':', 1)[1]
+        if text.isdigit() and 5 <= int(text) <= 300 and group_type in GROUP_TYPES:
+            context.user_data.pop('await', None)
+            await save_past_group(message, uid, group_type, int(text))
+        else:
+            await message.reply_text('Отправь длительность в минутах, например 55 (или /cancel).')
+        return
     wk = context.user_data.get('wk')
+    if wk and wk.get('stage') == 'group':
+        if text.isdigit() and 5 <= int(text) <= 300:
+            await end_group_class(message, context, get_user(uid), int(text))
+        else:
+            await message.reply_text('Когда занятие закончится — нажми кнопку с минутами или отправь число, например 55.')
+        return
     if wk and wk.get('stage', 'main') in ('warmup', 'cooldown'):
         if wk.get('cardio_kind') and text.isdigit() and 1 <= int(text) <= 180:
             await finish_cardio(message, context, get_user(uid), int(text))
@@ -2485,6 +2678,8 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         'повторы — одной кнопкой. Можно и текстом: <code>60 10</code> — вес и повторы.\n'
         'Там же кнопка «🏠 Сегодня дома» / «🏢 Сегодня в зале» — упражнения подберутся под место '
         'только на сегодня.\n'
+        '«👥 Групповая» — отметить групповое занятие (йога, пилатес, сайкл, зумба и др.): сейчас — '
+        'с кардио-разминкой и заминкой, или уже прошедшее. Засчитывается в прогресс. Команда /group.\n'
         f'• «{BTN_PROGRAM}» — вся недельная программа.\n'
         f'• «{BTN_PROGRESS}» — статистика, личные рекорды, история.\n'
         f'• «{BTN_WEIGHT}» — дневник веса тела.\n'
@@ -2494,7 +2689,7 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         '• «📖 Техника» — у каждого упражнения: как выполнять, дыхание, частые ошибки и фото.\n'
         '• «🔄 Заменить» — замени упражнение на другое для той же группы мышц (например, жим лёжа — на жим '
         'в тренажёре): только сегодня или навсегда. Вернуть исходные — в настройках.\n\n'
-        'Команды: /today /program /progress /weight /goals /cycle /settings /finish /cancel',
+        'Команды: /today /group /program /progress /weight /goals /cycle /settings /finish /cancel',
         parse_mode=ParseMode.HTML, reply_markup=menu_for(get_user(update.effective_user.id)))
 
 
@@ -2728,6 +2923,15 @@ async def admin_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await admin_panel(update, context)
 
 
+async def group_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not await need_profile(update, context):
+        return
+    if context.user_data.get('wk'):
+        await update.effective_message.reply_text('Сначала заверши текущую тренировку.')
+        return
+    await update.effective_message.reply_text('👥 Какая групповая тренировка?', reply_markup=group_types_kb())
+
+
 async def finish_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await finish_workout(update.effective_message, context, update.effective_user.id)
 
@@ -2755,6 +2959,7 @@ def build_app(token):
     app.add_handler(CommandHandler('cycle', show_cycle))
     app.add_handler(CommandHandler('settings', settings))
     app.add_handler(CommandHandler('finish', finish_command))
+    app.add_handler(CommandHandler('group', group_command))
     app.add_handler(CommandHandler('cancel', cancel))
     app.add_handler(CommandHandler('backup', backup_command))
     app.add_handler(CommandHandler('admin', admin_command))

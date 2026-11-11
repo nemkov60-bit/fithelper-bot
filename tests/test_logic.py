@@ -433,3 +433,27 @@ class SwapTests(unittest.TestCase):
         p = next(p for p in day.exercises if p.exercise.id == 'pec_deck')
         self.assertEqual(p.role, 'main')
         self.assertEqual(p.presc.sets, 4)
+
+
+class GroupWorkoutTests(unittest.TestCase):
+    def test_past_group_counts_in_progress_but_not_adaptation(self):
+        fb.init_db()
+        uid = 777
+        fb.save_user(uid, 'Г', {'gender': 'f', 'age': '30', 'goal': 'fit', 'level': 'novice', 'days': 3,
+                                'place': fb.GYM})
+        fb.log_past_group(uid, 'yoga', 60)
+        week = fb.finished_workouts(uid, since=fb.now() - fb.timedelta(days=7))
+        self.assertEqual(len(week), 1)
+        self.assertEqual(week[0]['kind'], 'group')
+        self.assertEqual(week[0]['group_minutes'], 60)
+        self.assertEqual(fb.finished_workouts(uid, kind='strength'), [])
+        user = fb.get_user(uid)
+        self.assertIn('тренировка 1 из', fb.today_mods(user)['notes'][0])  # адаптация считает только силовые
+        self.assertEqual(user['day_index'], 0)  # очерёдность дней программы не сдвигается
+        self.assertIn('Йога', fb.history_text(uid))
+
+    def test_group_types_have_stretches(self):
+        import warmup
+        for key, (name, groups) in fb.GROUP_TYPES.items():
+            self.assertTrue(groups, key)
+            self.assertTrue(all(g in warmup.STRETCHES for g in groups), key)
