@@ -8,9 +8,11 @@
 """
 import asyncio
 import html
+import json
 import logging
 import os
 import re
+import secrets
 import sqlite3
 from dataclasses import dataclass
 from datetime import date, datetime, timedelta
@@ -74,7 +76,7 @@ TZ_NAME = os.environ.get('FITNESS_TZ', 'Europe/Moscow')
 log = logging.getLogger('fitness_bot')
 
 # Версия кода: видна в «🛠 Админ» и в логах запуска — по ней видно, обновился ли бот на хостинге.
-BOT_VERSION = '2026-11-11 · групповые тренировки'
+BOT_VERSION = '2026-11-16 · кабинет тренера'
 
 
 def now():
@@ -718,6 +720,8 @@ def advice(ex, presc, prev_sets, gender='m', no_progress=False, start_hint=''):
 WORKOUT_COLUMNS = {'kind': "TEXT DEFAULT 'strength'", 'group_type': 'TEXT', 'group_minutes': 'INTEGER'}
 
 USER_COLUMNS = {
+    'is_trainer': 'INTEGER DEFAULT 0', 'trainer_status': 'TEXT', 'trainer_id': 'INTEGER', 'referred_by': 'INTEGER',
+    'ref_code': 'TEXT', 'sub_until': 'TEXT',
     'gender': 'TEXT', 'age': 'TEXT', 'cycle_tracking': 'INTEGER DEFAULT 0', 'period_start': 'TEXT',
     'cycle_len': 'INTEGER DEFAULT 28', 'period_len': 'INTEGER DEFAULT 5',
 }
@@ -748,6 +752,15 @@ def init_db():
             user_id INTEGER, exercise_id TEXT, target REAL, PRIMARY KEY(user_id, exercise_id));
         CREATE TABLE IF NOT EXISTS cycle_log(
             user_id INTEGER, start_date TEXT, PRIMARY KEY(user_id, start_date));
+        CREATE TABLE IF NOT EXISTS ref_links(
+            code TEXT PRIMARY KEY, trainer_id INTEGER, label TEXT, created_at TEXT);
+        CREATE TABLE IF NOT EXISTS trainer_invites(
+            code TEXT PRIMARY KEY, created_by INTEGER, created_at TEXT, used_by INTEGER, used_at TEXT);
+        CREATE TABLE IF NOT EXISTS assignments(
+            id INTEGER PRIMARY KEY AUTOINCREMENT, trainer_id INTEGER, client_id INTEGER, date TEXT, title TEXT,
+            note TEXT, items TEXT, status TEXT DEFAULT 'pending', workout_id INTEGER, created_at TEXT);
+        CREATE TABLE IF NOT EXISTS messages(
+            id INTEGER PRIMARY KEY AUTOINCREMENT, from_id INTEGER, to_id INTEGER, text TEXT, created_at TEXT);
         CREATE TABLE IF NOT EXISTS user_swaps(
             user_id INTEGER, place TEXT, original_id TEXT, replacement_id TEXT,
             PRIMARY KEY(user_id, place, original_id));
@@ -768,6 +781,8 @@ def init_db():
         for name, decl in WORKOUT_COLUMNS.items():
             if name not in have:
                 c.execute(f'ALTER TABLE workouts ADD COLUMN {name} {decl}')
+        c.execute('CREATE INDEX IF NOT EXISTS users_trainer ON users(trainer_id)')
+        c.execute('CREATE INDEX IF NOT EXISTS users_referred ON users(referred_by)')
 
 
 def get_user(uid):
@@ -798,7 +813,8 @@ def save_user(uid, name, profile):
 
 def set_user_field(uid, field, value):
     assert field in ('day_index', 'target_weight', 'rest_timer', 'cycle_tracking', 'period_start',
-                     'cycle_len', 'period_len', 'place')
+                     'cycle_len', 'period_len', 'place', 'goal', 'level', 'days', 'trainer_status', 'trainer_id',
+                     'sub_until')
     with connect() as c:
         c.execute(f'UPDATE users SET {field}=? WHERE user_id=?', (value, uid))
 
@@ -1014,13 +1030,22 @@ BTN_GOALS = '🎯 Цели'
 BTN_CYCLE = '🌸 Цикл'
 BTN_SETTINGS = '⚙️ Настройки'
 BTN_ADMIN = '🛠 Админ'
+BTN_CABINET = '🎓 Кабинет тренера'
+BTN_MY_COACH = '🎓 Мой тренер'
 
 
 def menu_for(user):
     last = [BTN_CYCLE, BTN_SETTINGS] if user and user.get('gender') == 'f' else [BTN_SETTINGS]
     rows = [[BTN_TODAY], [BTN_PROGRAM, BTN_PROGRESS], [BTN_WEIGHT, BTN_GOALS], last]
+    extra = []
+    if user and user.get('trainer_id'):
+        extra.append(BTN_MY_COACH)
+    if user and user.get('is_trainer'):
+        extra.append(BTN_CABINET)
     if user and is_admin(user.get('user_id')):
-        rows.append([BTN_ADMIN])
+        extra.append(BTN_ADMIN)
+    if extra:
+        rows.append(extra)
     return ReplyKeyboardMarkup(rows, resize_keyboard=True)
 
 
@@ -1115,7 +1140,7 @@ def program_text(user):
 
 
 def exercise_card(user, wk):
-    day = plan_day(user, wk['day'], wk.get('mods'), wk.get('place'), wk.get('swaps'))
+    day = wk_day(user, wk)
     p = day.exercises[wk['ex_pos']]
     prev = previous_sets(user['user_id'], p.exercise.id, wk['wid'])
     done = [s for s in workout_sets(wk['wid']) if s['exercise_id'] == p.exercise.id]
@@ -1141,7 +1166,10 @@ def exercise_card(user, wk):
         lines.append(f'<b>Подход {wk["set_no"]}/{p.presc.sets}</b> — нажми, сколько повторов сделал(а), '
                      f'или отправь <code>{fmt_w(weight) + " " if weight else ""}{p.presc.hi}</code>.')
     rows = set_buttons(p, weight, bool(done))
-    rows.append([('📖 Техника', f't:{p.exercise.id}'), ('🔄 Заменить', 'sw:l')])
+    if wk.get('items') is None:
+        rows.append([('📖 Техника', f't:{p.exercise.id}'), ('🔄 Заменить', 'sw:l')])
+    else:
+        rows.append([('📖 Техника', f't:{p.exercise.id}')])
     rows.append([('⏭ Следующее упражнение', 'w:next'), ('🏁 Завершить', 'w:finish')])
     return '\n'.join(lines), kb(rows)
 
@@ -1427,7 +1455,7 @@ async def send_technique(message, ex, user):
 
 async def send_card(message, user, wk, prefix=''):
     """Карточка упражнения; перед первым подходом — картинки техники."""
-    day = plan_day(user, wk['day'], wk.get('mods'), wk.get('place'), wk.get('swaps'))
+    day = wk_day(user, wk)
     ex = day.exercises[wk['ex_pos']].exercise
     if wk['set_no'] == 1 and not prefix:
         await send_photos(message, ex, user.get('gender') or 'm')
@@ -1444,7 +1472,7 @@ def cardio_card_text(user, wk, phase):
     lo, hi, _ = cardio_minutes(phase, user['goal'], ag)
     p_lo, p_hi = pulse_range(phase, user['goal'], user.get('age'))
     group = wk.get('kind') == 'group'
-    day = None if group else plan_day(user, wk['day'], wk.get('mods'), wk.get('place'), wk.get('swaps'))
+    day = None if group else wk_day(user, wk)
     if phase == 'warmup':
         lines = ['<b>🔥 Разминка — 2 шага</b>', '',
                  f'<b>1. Кардио {lo}–{hi} мин</b> — выбери тренажёр ниже.',
@@ -1705,6 +1733,9 @@ async def swap_callback(data, update, context):
     user = get_user(uid)
     if not wk or wk.get('stage', 'main') != 'main' or not profile_complete(user):
         return
+    if wk.get('items') is not None:
+        await message.reply_text('Эту тренировку составил тренер — заменить упражнение можно, написав ему.')
+        return
     place = wk.get('place') or user['place']
     day = plan_day(user, wk['day'], wk.get('mods'), place, wk.get('swaps'))
     base_ex = base_program(user, place)[wk['day'] % user['days']].exercises[wk['ex_pos']].exercise
@@ -1789,7 +1820,7 @@ async def replace_program_callback(data, update, context):
 # ======================================================================
 
 def _current_planned(user, wk):
-    return plan_day(user, wk['day'], wk.get('mods'), wk.get('place'), wk.get('swaps')).exercises[wk['ex_pos']]
+    return wk_day(user, wk).exercises[wk['ex_pos']]
 
 
 async def set_current_weight(message, context, uid, weight, note=''):
@@ -1878,6 +1909,13 @@ def schedule_rest(bot, chat_id, uid, seconds, text):
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     uid = update.effective_user.id
     context.user_data.pop('await', None)
+    payload = (context.args or [''])[0] if getattr(context, 'args', None) else ''
+    if payload.startswith('coach_'):
+        await handle_coach_invite(update, context, payload[6:])
+        if not profile_complete(get_user(uid)):
+            return
+    elif payload.startswith('ref_'):
+        await handle_ref_start(update, context, payload[4:])
     user = get_user(uid)
     if profile_complete(user):
         await update.effective_message.reply_text(
@@ -2013,16 +2051,20 @@ async def settings(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not user:
         return
     timer = '🔔 вкл' if user['rest_timer'] else '🔕 выкл'
+    sub = f'активна до {date.fromisoformat(user["sub_until"]):%d.%m.%Y}' if has_subscription(user) else 'нет'
+    trainer_row = [] if is_trainer(user) else [[('🎓 Я тренер — партнёрская программа', 'tr:apply')]]
     await update.effective_message.reply_text(
         f'<b>⚙️ Настройки</b>\nПол: {GENDERS[user["gender"]]}\nВозраст: {AGES[user["age"]]}\n'
         f'Цель: {GOALS[user["goal"]]}\nОпыт: {LEVELS[user["level"]]}\n'
-        f'Где: {PLACES[user["place"]]}\nТренировок в неделю: {user["days"]}\nТаймер отдыха: {timer}',
+        f'Где: {PLACES[user["place"]]}\nТренировок в неделю: {user["days"]}\nТаймер отдыха: {timer}\n'
+        f'💳 Подписка: {sub}\nТвой ID: <code>{user["user_id"]}</code>',
         parse_mode=ParseMode.HTML,
         reply_markup=kb([[('🔄 Заполнить анкету заново', 's:redo')],
                          [(f'📍 Место по умолчанию: {PLACE_SHORT[user["place"]]}', 's:place')],
                          [(f'Таймер отдыха: {timer}', 's:timer')]]
                         + ([[(f'↩️ Вернуть исходные упражнения ({count_swaps(user["user_id"])})', 's:unswap')]]
-                           if count_swaps(user['user_id']) else [])))
+                           if count_swaps(user['user_id']) else [])
+                        + trainer_row))
 
 
 async def show_today(update: Update, context: ContextTypes.DEFAULT_TYPE, day_index=None):
@@ -2038,6 +2080,19 @@ async def show_today(update: Update, context: ContextTypes.DEFAULT_TYPE, day_ind
             await send_group_card(update.effective_message, wk, resume=True)
         else:
             await send_card(update.effective_message, user, wk, prefix='Тренировка уже идёт — продолжаем!\n\n')
+        return
+    due = client_assignments(user['user_id'], until=today_iso()) if user.get('trainer_id') else []
+    if due and day_index is None:
+        rows = [[(f'▶️ {a["title"]} ({date_label(a["date"])})', f'cl:go:{a["id"]}')] for a in due[:3]]
+        rows.append([('📋 Своя программа на сегодня', f'w:show:{user["day_index"] % user["days"]}')])
+        lines = ['<b>🎯 Тренировка от тренера на сегодня</b>', '']
+        for a in due[:3]:
+            lines.append(f'<b>{html.escape(a["title"])}</b>')
+            lines += [item_line(i, it) for i, it in enumerate(a['items'], 1)]
+            if a['note']:
+                lines.append(f'💬 {html.escape(a["note"])}')
+            lines.append('')
+        await update.effective_message.reply_text('\n'.join(lines), parse_mode=ParseMode.HTML, reply_markup=kb(rows))
         return
     if day_index is None:
         day_index = user['day_index']
@@ -2266,7 +2321,8 @@ async def finish_workout(message, context, uid):
         if before and today > before:
             records.append(EXERCISES[ex_id].name if ex_id in EXERCISES else ex_id)
     finish_workout_db(wk['wid'])
-    set_user_field(uid, 'day_index', (wk['day'] + 1) % user['days'])
+    if not wk.get('assigned'):
+        set_user_field(uid, 'day_index', (wk['day'] + 1) % user['days'])
     started = datetime.fromisoformat(wk['started'])
     minutes = max(1, int((now() - started).total_seconds() // 60))
     tonnage = sum(s['weight'] * s['reps'] for s in sets
@@ -2279,8 +2335,24 @@ async def finish_workout(message, context, uid):
     if records:
         lines += ['', '🏆 <b>Новые рекорды:</b> ' + ', '.join(records)]
     week = finished_workouts(uid, since=now() - timedelta(days=7))
-    lines += ['', f'На этой неделе: {len(week)} из {user["days"]} тренировок {progress_bar(len(week) / user["days"])}',
-              f'Следующая — день {(wk["day"] + 1) % user["days"] + 1}. Не забудь про сон и белок 🍗']
+    if wk.get('assigned'):
+        set_assignment_status(wk['assigned'], 'done', wk['wid'])
+        a = get_assignment(wk['assigned'])
+        if a:
+            details = '\n'.join(f'• {EXERCISES[e].name if e in EXERCISES else e}: '
+                                + ', '.join(fmt_set(s['weight'], s['reps'], EXERCISES[e].unit if e in EXERCISES else 'reps')
+                                            for s in sets if s['exercise_id'] == e)
+                                for e in dict.fromkeys(s['exercise_id'] for s in sets))
+            await notify(context.bot, a['trainer_id'],
+                         f'✅ <b>{html.escape(display_name(user))}</b> выполнил(а) тренировку '
+                         f'«{html.escape(a["title"])}» за {minutes} мин.\n\n{details}'
+                         + (f'\n🏆 Рекорды: {html.escape(", ".join(records))}' if records else ''),
+                         kb([[('👤 Открыть', f'tr:c:{uid}')]]))
+        lines += ['', f'На этой неделе: {len(week)} из {user["days"]} тренировок {progress_bar(len(week) / user["days"])}',
+                  'Тренер получил отчёт о тренировке 📨']
+    else:
+        lines += ['', f'На этой неделе: {len(week)} из {user["days"]} тренировок {progress_bar(len(week) / user["days"])}',
+                  f'Следующая — день {(wk["day"] + 1) % user["days"] + 1}. Не забудь про сон и белок 🍗']
     await message.reply_text('\n'.join(lines), parse_mode=ParseMode.HTML, reply_markup=menu_for(user))
 
 
@@ -2288,7 +2360,7 @@ async def log_set(update: Update, context: ContextTypes.DEFAULT_TYPE, weight, re
     uid = update.effective_user.id
     wk = context.user_data['wk']
     user = get_user(uid)
-    day = plan_day(user, wk['day'], wk.get('mods'), wk.get('place'), wk.get('swaps'))
+    day = wk_day(user, wk)
     p = day.exercises[wk['ex_pos']]
     add_set(wk['wid'], uid, p.exercise.id, wk['set_no'], weight, reps)
     wk.setdefault('weights', {})[p.exercise.id] = weight
@@ -2319,7 +2391,7 @@ async def next_exercise(message, context, uid, rest=None):
     if not wk:
         return
     user = get_user(uid)
-    day = plan_day(user, wk['day'], wk.get('mods'), wk.get('place'), wk.get('swaps'))
+    day = wk_day(user, wk)
     wk['ex_pos'] += 1
     wk['set_no'] = 1
     context.user_data['wk'] = wk
@@ -2410,7 +2482,7 @@ async def callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         wk = context.user_data.get('wk')
         user = get_user(uid)
         if wk and profile_complete(user):
-            ex = plan_day(user, wk['day'], wk.get('mods'), wk.get('place'), wk.get('swaps')).exercises[wk['ex_pos']].exercise
+            ex = wk_day(user, wk).exercises[wk['ex_pos']].exercise
             await send_technique(message, ex, user)
 
     # --- Техника ---
@@ -2453,6 +2525,10 @@ async def callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await finish_workout(message, context, uid)
     elif data.startswith('gr:'):
         await group_callback(data, update, context)
+    elif data.startswith('tr:'):
+        await trainer_callback(data, update, context)
+    elif data.startswith('cl:'):
+        await client_callback(data, update, context)
     elif data.startswith('wu:'):
         await cardio_callback(data, update, context)
     elif data.startswith('ws:'):
@@ -2548,7 +2624,7 @@ async def text_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     uid = update.effective_user.id
     routes = {BTN_TODAY: show_today, BTN_PROGRAM: show_program, BTN_PROGRESS: show_progress,
               BTN_WEIGHT: show_weight, BTN_GOALS: show_goals, BTN_SETTINGS: settings, BTN_CYCLE: show_cycle,
-              BTN_ADMIN: admin_panel}
+              BTN_ADMIN: admin_panel, BTN_CABINET: trainer_cabinet, BTN_MY_COACH: show_my_coach}
     if text in routes:
         if text != BTN_WEIGHT:
             context.user_data.pop('await', None)
@@ -2558,6 +2634,38 @@ async def text_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     message = update.effective_message
     if awaiting and awaiting.startswith('photo:'):
         await message.reply_text('Жду фото для упражнения — отправь картинку или /cancel.')
+        return
+    if awaiting == 'link_label':
+        user = get_user(uid)
+        if is_trainer(user):
+            context.user_data.pop('await', None)
+            code = create_ref_link(uid, text[:40])
+            url = f'https://t.me/{context.bot.username}?start=ref_{code}'
+            await message.reply_text(f'✅ Ссылка «{html.escape(text[:40])}» готова:\n<code>{url}</code>\n\n'
+                                     'Нажми, чтобы скопировать, и отправь клиентам.', parse_mode=ParseMode.HTML,
+                                     reply_markup=kb([[('🔗 Все ссылки', 'tr:links'), ('⬅️ Кабинет', 'tr:home')]]),
+                                     disable_web_page_preview=True)
+        return
+    if awaiting == 'build_weight' and context.user_data.get('build'):
+        value = parse_weight_input(text)
+        if value is None:
+            await message.reply_text('Отправь вес числом, например 40, или нажми «Без веса».')
+            return
+        context.user_data.pop('await', None)
+        await add_build_item(message, context, value or None)
+        return
+    if awaiting == 'build_note' and context.user_data.get('build'):
+        context.user_data.pop('await', None)
+        context.user_data['build']['note'] = text[:500]
+        await show_builder(message, context)
+        return
+    if awaiting and awaiting.startswith('msg_to:'):
+        context.user_data.pop('await', None)
+        await deliver_message(update, context, int(awaiting.split(':')[1]), text[:2000])
+        return
+    if awaiting == 'ad_sub' and is_admin(uid):
+        if await grant_subscription(message, context, text):
+            context.user_data.pop('await', None)
         return
     if awaiting in ('onb_period', 'period_date'):
         d = parse_date(text)
@@ -2650,7 +2758,7 @@ async def text_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if parsed and parsed[0] == 0 and '.' not in text and ',' not in text:
             # Одно число — это повторы с текущим выбранным весом.
             user = get_user(uid)
-            p = plan_day(user, wk['day'], wk.get('mods'), wk.get('place'), wk.get('swaps')).exercises[wk['ex_pos']]
+            p = wk_day(user, wk).exercises[wk['ex_pos']]
             parsed = (current_weight(user, wk, p), parsed[1])
         if not parsed:
             await message.reply_text('Не понял подход. Нажми кнопку с числом повторов или отправь «вес повторы», '
@@ -2754,7 +2862,9 @@ async def admin_panel(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 def admin_menu_kb():
-    return kb([[('📸 Фото упражнений', 'ad:groups')], [('💾 Резервная копия базы', 'ad:backup')]])
+    return kb([[('📸 Фото упражнений', 'ad:groups')],
+               [('🎓 Тренеры', 'ad:tr'), ('💳 Выдать подписку', 'ad:sub')],
+               [('💾 Резервная копия базы', 'ad:backup')]])
 
 
 def coverage_mark(ex_id):
@@ -2845,6 +2955,38 @@ async def admin_callback(data, update, context):
         await message.reply_text(admin_stats_text(), parse_mode=ParseMode.HTML, reply_markup=admin_menu_kb())
     elif data == 'ad:backup':
         await send_backup(message)
+    elif data == 'ad:tr':
+        text, pending = admin_trainers_text()
+        rows = [[(f'✅ {display_name(p)}', f'ad:tok:{p["user_id"]}'), ('❌', f'ad:tno:{p["user_id"]}')] for p in pending]
+        rows.append([('🔗 Ссылка-приглашение для тренера', 'ad:tinv')])
+        await message.reply_text(text, parse_mode=ParseMode.HTML, reply_markup=kb(rows))
+    elif data == 'ad:tinv':
+        code = create_trainer_invite(uid)
+        url = f'https://t.me/{context.bot.username}?start=coach_{code}'
+        await message.reply_text(f'🔗 Ссылка-приглашение для тренера:\n<code>{url}</code>\n\n'
+                                 'Отправь её тренеру — по ней он сразу получит кабинет тренера, без заявки. '
+                                 'Ссылка одноразовая: для каждого тренера создай новую.',
+                                 parse_mode=ParseMode.HTML, disable_web_page_preview=True)
+    elif data == 'ad:sub':
+        context.user_data['await'] = 'ad_sub'
+        await message.reply_text('💳 Отправь <code>ID ДНЕЙ</code>, например <code>123456789 30</code> — подписка '
+                                 'продлится на 30 дней. 0 — отменить. ID видно в карточке подопечного у тренера '
+                                 'или пользователь может узнать его у @userinfobot.', parse_mode=ParseMode.HTML)
+    elif parts[1] in ('tok', 'tno') and len(parts) == 3 and parts[2].isdigit():
+        tid = int(parts[2])
+        target = get_user(tid)
+        if not target:
+            return
+        if parts[1] == 'tok':
+            make_trainer(tid)
+            await notify(context.bot, tid, '🎉 Заявка одобрена! Ты в партнёрской программе. '
+                                           f'Кабинет — кнопка «{BTN_CABINET}» в меню (или /trainer).',
+                         menu_for(get_user(tid)))
+            await message.reply_text(f'✅ {display_name(target)} теперь тренер.')
+        else:
+            set_user_field(tid, 'trainer_status', 'rejected')
+            await notify(context.bot, tid, 'К сожалению, заявка в партнёрскую программу отклонена.')
+            await message.reply_text(f'Заявка {display_name(target)} отклонена.')
     elif data == 'ad:groups':
         await message.reply_text('Выбери группу мышц (загружено / всего кадров):', reply_markup=admin_groups_kb())
     elif parts[1] == 'g' and len(parts) == 3 and parts[2] in GROUPS:
@@ -2944,6 +3086,892 @@ async def on_error(update, context):
     log.error('Ошибка обработки update', exc_info=context.error)
 
 
+# ======================================================================
+# Тренеры: реферальная программа, подопечные, назначенные тренировки, сообщения
+# ======================================================================
+
+# (название, от скольких подписчиков, % от подписки, описание)
+TRAINER_LEVELS = [
+    ('🤝 PARTNER', 0, 20, 'Любой тренер, вступивший в программу'),
+    ('🥈 SILVER', 10, 25, 'Тренер с постоянными рекомендациями'),
+    ('🥇 GOLD', 30, 30, 'Активный партнёр с собственной аудиторией'),
+    ('👑 AMBASSADOR', 100, 40, 'Крупный партнёр, который приводит стабильный поток'),
+]
+REP_PRESETS = [(5, 5), (6, 8), (8, 10), (10, 12), (12, 15), (15, 20)]
+SEC_PRESETS = [(30, 30), (45, 45), (60, 60), (30, 60)]
+
+
+def sub_price():
+    try:
+        return float((os.environ.get('SUB_PRICE') or '0').replace(',', '.'))
+    except ValueError:
+        return 0.0
+
+
+def trainer_level(subscribers):
+    """(номер уровня, уровень) по числу подписчиков."""
+    idx = max(i for i, lvl in enumerate(TRAINER_LEVELS) if subscribers >= lvl[1])
+    return idx, TRAINER_LEVELS[idx]
+
+
+def today_iso():
+    return now().date().isoformat()
+
+
+def has_subscription(user):
+    return bool(user and user.get('sub_until') and user['sub_until'] >= today_iso())
+
+
+def is_trainer(user):
+    return bool(user and user.get('is_trainer'))
+
+
+def display_name(user, fallback='Пользователь'):
+    return (user or {}).get('name') or fallback
+
+
+def ensure_user_row(uid, name):
+    """Строка пользователя без анкеты — нужна тренерам и пришедшим по ссылке до заполнения анкеты."""
+    with connect() as c:
+        c.execute('INSERT OR IGNORE INTO users(user_id, name, day_index, created_at) VALUES(?,?,0,?)',
+                  (uid, name, now().isoformat(timespec='seconds')))
+        c.execute("UPDATE users SET name=? WHERE user_id=? AND (name IS NULL OR name='')", (name, uid))
+
+
+def referral_stats(tid):
+    """(приглашено всего, из них с активной подпиской)."""
+    with connect() as c:
+        invited = c.execute('SELECT COUNT(*) FROM users WHERE referred_by=?', (tid,)).fetchone()[0]
+        subs = c.execute('SELECT COUNT(*) FROM users WHERE referred_by=? AND sub_until>=?',
+                         (tid, today_iso())).fetchone()[0]
+    return invited, subs
+
+
+def trainer_clients(tid):
+    with connect() as c:
+        return [dict(r) for r in c.execute('SELECT * FROM users WHERE trainer_id=? ORDER BY name', (tid,))]
+
+
+def create_ref_link(tid, label):
+    alphabet = 'abcdefghijkmnpqrstuvwxyz23456789'
+    with connect() as c:
+        for _ in range(20):
+            code = ''.join(secrets.choice(alphabet) for _ in range(8))
+            if not c.execute('SELECT 1 FROM ref_links WHERE code=?', (code,)).fetchone():
+                c.execute('INSERT INTO ref_links(code, trainer_id, label, created_at) VALUES(?,?,?,?)',
+                          (code, tid, label, now().isoformat(timespec='seconds')))
+                return code
+    raise RuntimeError('Не удалось создать код ссылки')
+
+
+def get_ref_link(code):
+    with connect() as c:
+        row = c.execute('SELECT * FROM ref_links WHERE code=?', (code,)).fetchone()
+    return dict(row) if row else None
+
+
+def trainer_links(tid):
+    with connect() as c:
+        return [dict(r) for r in c.execute(
+            '''SELECT l.*, (SELECT COUNT(*) FROM users u WHERE u.ref_code=l.code) AS joined,
+                      (SELECT COUNT(*) FROM users u WHERE u.ref_code=l.code AND u.sub_until>=?) AS subs
+               FROM ref_links l WHERE l.trainer_id=? ORDER BY l.created_at''', (today_iso(), tid))]
+
+
+def save_assignment(tid, cid, date_iso, title, note, items):
+    with connect() as c:
+        cur = c.execute('''INSERT INTO assignments(trainer_id, client_id, date, title, note, items, status, created_at)
+                           VALUES(?,?,?,?,?,?, 'pending', ?)''',
+                        (tid, cid, date_iso, title, note, json.dumps(items), now().isoformat(timespec='seconds')))
+        return cur.lastrowid
+
+
+def get_assignment(aid):
+    with connect() as c:
+        row = c.execute('SELECT * FROM assignments WHERE id=?', (aid,)).fetchone()
+    if not row:
+        return None
+    a = dict(row)
+    a['items'] = json.loads(a['items'] or '[]')
+    return a
+
+
+def client_assignments(cid, status='pending', until=None):
+    q = 'SELECT id FROM assignments WHERE client_id=? AND status=?'
+    args = [cid, status]
+    if until:
+        q += ' AND date<=?'
+        args.append(until)
+    with connect() as c:
+        ids = [r[0] for r in c.execute(q + ' ORDER BY date, id', args)]
+    return [get_assignment(i) for i in ids]
+
+
+def set_assignment_status(aid, status, wid=None):
+    with connect() as c:
+        c.execute('UPDATE assignments SET status=?, workout_id=COALESCE(?, workout_id) WHERE id=?', (status, wid, aid))
+
+
+def save_message(from_id, to_id, text):
+    with connect() as c:
+        c.execute('INSERT INTO messages(from_id, to_id, text, created_at) VALUES(?,?,?,?)',
+                  (from_id, to_id, text, now().isoformat(timespec='seconds')))
+
+
+def recent_messages(a, b, limit=3):
+    with connect() as c:
+        rows = c.execute('''SELECT * FROM messages WHERE (from_id=? AND to_id=?) OR (from_id=? AND to_id=?)
+                            ORDER BY id DESC LIMIT ?''', (a, b, b, a, limit)).fetchall()
+    return [dict(r) for r in reversed(rows)]
+
+
+def item_rest(ex, hi):
+    if ex.unit == 'sec':
+        return 60
+    return 180 if hi <= 6 else (120 if hi <= 10 else 75)
+
+
+def day_from_items(items, title, note=''):
+    """WorkoutDay из упражнений, назначенных тренером."""
+    planned = []
+    for it in items:
+        ex = EXERCISES.get(it['ex'])
+        if not ex:
+            continue
+        presc = Prescription(int(it['sets']), int(it['lo']), int(it['hi']), item_rest(ex, int(it['hi'])), ex.unit)
+        planned.append(PlannedExercise(ex, 'main' if ex.compound else 'acc', presc))
+    return WorkoutDay(title, tuple(planned), note or 'Тренировка от тренера')
+
+
+def items_from_day(day):
+    return [{'ex': p.exercise.id, 'sets': p.presc.sets, 'lo': p.presc.lo, 'hi': p.presc.hi, 'w': None}
+            for p in day.exercises]
+
+
+def item_line(i, it):
+    ex = EXERCISES.get(it['ex'])
+    name = ex.name if ex else it['ex']
+    unit = ' сек' if ex and ex.unit == 'sec' else ''
+    reps = f'{it["lo"]}' if it['lo'] == it['hi'] else f'{it["lo"]}–{it["hi"]}'
+    weight = f', {fmt_w(it["w"])} кг' if it.get('w') else ''
+    return f'{i}. {name} — {it["sets"]}×{reps}{unit}{weight}'
+
+
+def wk_day(user, wk):
+    """План текущей тренировки: назначенная тренером или день программы."""
+    if wk.get('items') is not None:
+        return day_from_items(wk['items'], wk.get('atitle') or 'Тренировка от тренера', wk.get('anote') or '')
+    return plan_day(user, wk['day'], wk.get('mods'), wk.get('place'), wk.get('swaps'))
+
+
+def date_label(date_iso):
+    d = date.fromisoformat(date_iso)
+    names = ['пн', 'вт', 'ср', 'чт', 'пт', 'сб', 'вс']
+    if d == now().date():
+        return f'сегодня, {d:%d.%m}'
+    if d == now().date() + timedelta(days=1):
+        return f'завтра, {d:%d.%m}'
+    return f'{names[d.weekday()]}, {d:%d.%m}'
+
+
+async def notify(bot, uid, text, markup=None):
+    """Сообщение другому пользователю; False — если не доставлено (например, бот заблокирован)."""
+    try:
+        await bot.send_message(uid, text, parse_mode=ParseMode.HTML, reply_markup=markup)
+        return True
+    except Exception as exc:
+        log.warning('Не удалось отправить сообщение %s: %s', uid, exc)
+        return False
+
+
+# ---------- Кабинет тренера ----------
+
+def cabinet_text(trainer):
+    tid = trainer['user_id']
+    invited, subs = referral_stats(tid)
+    idx, (name, _, percent, desc) = trainer_level(subs)
+    clients = trainer_clients(tid)
+    lines = ['<b>🎓 Кабинет тренера</b>', '',
+             f'Уровень: <b>{name}</b> — <b>{percent}%</b> от подписки', f'<i>{desc}</i>', '',
+             f'💳 Подписчиков (активная подписка): <b>{subs}</b>',
+             f'🔗 Пришло по твоим ссылкам: <b>{invited}</b>',
+             f'👥 Подопечных: <b>{len(clients)}</b>']
+    if idx + 1 < len(TRAINER_LEVELS):
+        nxt_name, nxt_from, nxt_percent, _ = TRAINER_LEVELS[idx + 1]
+        cur_from = TRAINER_LEVELS[idx][1]
+        frac = (subs - cur_from) / (nxt_from - cur_from)
+        lines += ['', f'До {nxt_name} ({nxt_percent}%): ещё <b>{nxt_from - subs}</b> подписчиков',
+                  progress_bar(frac)]
+    else:
+        lines += ['', '🏆 У тебя максимальный уровень!']
+    price = sub_price()
+    if price and subs:
+        income = subs * price * percent / 100
+        lines += ['', f'💰 Примерный доход: {subs} × {fmt_w(price)} ₽ × {percent}% ≈ <b>{fmt_w(round(income))} ₽</b>/мес']
+    pending = sum(len(client_assignments(c['user_id'])) for c in clients)
+    if pending:
+        lines.append(f'🎯 Назначено и ещё не выполнено: {pending}')
+    return '\n'.join(lines)
+
+
+def cabinet_kb():
+    return kb([[('🔗 Мои ссылки', 'tr:links'), ('👥 Подопечные', 'tr:clients')],
+               [('🏆 Уровни программы', 'tr:levels')]])
+
+
+def levels_text(subs):
+    idx, _ = trainer_level(subs)
+    lines = ['<b>🏆 Уровни партнёрской программы</b>', '',
+             'Процент считается от подписок пользователей, которые пришли по твоим ссылкам.', '']
+    for i, (name, start_from, percent, desc) in enumerate(TRAINER_LEVELS):
+        end = TRAINER_LEVELS[i + 1][1] - 1 if i + 1 < len(TRAINER_LEVELS) else None
+        rng = f'{max(start_from, 1)}–{end}' if end else f'{start_from}+'
+        mark = '  ← ты здесь' if i == idx else ''
+        lines += [f'<b>{name} — {percent}%</b>{mark}', f'{rng} подписчиков · {desc}', '']
+    return '\n'.join(lines)
+
+
+def links_text(trainer, bot_username):
+    links = trainer_links(trainer['user_id'])
+    lines = ['<b>🔗 Твои реферальные ссылки</b>', '',
+             'Отправь ссылку клиентам или опубликуй её. Все, кто придёт по ней, закрепятся за тобой — '
+             'с их подписок ты получаешь процент. Подопечными они станут после их согласия.', '']
+    if not links:
+        lines.append('Ссылок пока нет — создай первую.')
+    for link in links:
+        url = f'https://t.me/{bot_username}?start=ref_{link["code"]}'
+        lines += [f'<b>{html.escape(link["label"] or "Без названия")}</b> — пришло {link["joined"]}, '
+                  f'подписок {link["subs"]}', f'<code>{url}</code>', '']
+    return '\n'.join(lines)
+
+
+def client_card_text(client):
+    cid = client['user_id']
+    t = now()
+    week = finished_workouts(cid, since=t - timedelta(days=7))
+    month = finished_workouts(cid, since=t - timedelta(days=30))
+    groups = sum(1 for w in month if w.get('kind') == 'group')
+    sub = f'до {date.fromisoformat(client["sub_until"]):%d.%m.%Y}' if has_subscription(client) else 'нет'
+    lines = [f'<b>👤 {html.escape(display_name(client))}</b>  (ID <code>{cid}</code>)', f'💳 Подписка: {sub}']
+    if profile_complete(client):
+        lines += [f'{GENDERS[client["gender"]]}, {AGES[client["age"]]} · {GOALS[client["goal"]]}',
+                  f'{LEVELS[client["level"]]} · {client["days"]} трен./нед. · {PLACE_SHORT[client["place"]]}']
+        lines += ['', f'📅 За 7 дней: <b>{len(week)}</b> из {client["days"]}  {progress_bar(len(week) / client["days"])}',
+                  f'За 30 дней: <b>{len(month)}</b>' + (f' (групповых: {groups})' if groups else ''),
+                  f'🏃 Кардио за 7 дней: {cardio_minutes_since(cid, t - timedelta(days=7))} мин']
+    else:
+        lines.append('Анкета ещё не заполнена.')
+    if month:
+        last = month[0]
+        lines.append(f'🕐 Последняя: {last["finished_at"][:10]} — {html.escape(last["title"])}')
+    prs = personal_records(cid)
+    if prs:
+        lines += ['', '<b>🏆 Рекорды</b>']
+        ranked = sorted(prs.items(), key=lambda kv: -kv[1][0])
+        for ex_id, (score, w, r, day) in ranked[:5]:
+            ex = EXERCISES.get(ex_id)
+            if ex:
+                lines.append(f'• {ex.name}: {fmt_set(w, r, ex.unit)} — {day}')
+    bw = body_weights(cid)
+    if bw:
+        diff = bw[-1]['weight'] - bw[0]['weight']
+        sign = '+' if diff > 0 else ''
+        lines.append(f'⚖️ Вес: {fmt_w(bw[-1]["weight"])} кг ({sign}{fmt_w(diff)} от старта)')
+    pending = client_assignments(cid)
+    if pending:
+        lines += ['', '<b>🎯 Назначено</b>'] + [f'• {date_label(a["date"])} — {html.escape(a["title"])}' for a in pending]
+    msgs = recent_messages(client['trainer_id'] or 0, cid)
+    if msgs:
+        lines += ['', '<b>💬 Переписка</b>']
+        for m in msgs:
+            who = 'Ты' if m['from_id'] != cid else display_name(client)
+            lines.append(f'{html.escape(who)}: {html.escape(m["text"][:120])}')
+    return '\n'.join(lines)
+
+
+def client_card_kb(cid):
+    return kb([[('🎯 Назначить тренировку', f'tr:as:{cid}'), ('💬 Написать', f'tr:msg:{cid}')],
+               [('✏️ Изменить программу', f'tr:ed:{cid}'), ('📜 История', f'tr:h:{cid}')],
+               [('📋 Назначенные', f'tr:al:{cid}'), ('⬅️ Подопечные', 'tr:clients')]])
+
+
+def builder_text(build, client):
+    lines = [f'<b>🛠 Тренировка для {html.escape(display_name(client))}</b>',
+             f'Название: {html.escape(build["title"])}', '']
+    if build['items']:
+        lines += [item_line(i, it) for i, it in enumerate(build['items'], 1)]
+    else:
+        lines.append('Упражнений пока нет. Добавь их по одному или возьми день из программы подопечного.')
+    if build.get('note'):
+        lines += ['', f'📝 {html.escape(build["note"])}']
+    return '\n'.join(lines)
+
+
+def builder_kb(build):
+    rows = [[('➕ Упражнение', 'tr:ba'), ('📅 День из его программы', 'tr:bp')]]
+    if build['items']:
+        rows.append([('🗑 Убрать последнее', 'tr:bx'), ('📝 Комментарий', 'tr:bn')])
+        rows.append([('✅ Назначить', 'tr:bok')])
+    rows.append([('✖️ Отмена', 'tr:bc')])
+    return kb(rows)
+
+
+async def show_builder(message, context):
+    build = context.user_data['build']
+    client = get_user(build['client'])
+    await message.reply_text(builder_text(build, client), parse_mode=ParseMode.HTML, reply_markup=builder_kb(build))
+
+
+async def trainer_cabinet(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    uid = update.effective_user.id
+    user = get_user(uid)
+    message = update.effective_message
+    if not is_trainer(user):
+        await trainer_apply_prompt(message, user)
+        return
+    context.user_data.pop('await', None)
+    await message.reply_text(cabinet_text(user), parse_mode=ParseMode.HTML, reply_markup=cabinet_kb())
+
+
+async def trainer_apply_prompt(message, user):
+    if user and user.get('trainer_status') == 'pending':
+        await message.reply_text('⏳ Твоя заявка в партнёрскую программу на рассмотрении. Как только её одобрят — '
+                                 'здесь появится кабинет тренера.')
+        return
+    await message.reply_text(
+        '<b>🎓 Партнёрская программа для тренеров</b>\n\n'
+        '• Создавай реферальные ссылки и получай от <b>20% до 40%</b> от подписок приглашённых.\n'
+        '• Назначай подопечным тренировки, следи за их прогрессом и корректируй программу.\n'
+        '• Пиши подопечным сообщения прямо в боте.',
+        parse_mode=ParseMode.HTML, reply_markup=kb([[('📝 Подать заявку', 'tr:apply')]]))
+
+
+async def trainer_callback(data, update, context):
+    message = update.callback_query.message
+    uid = update.effective_user.id
+    user = get_user(uid)
+    parts = data.split(':')
+    if data == 'tr:apply':
+        ensure_user_row(uid, update.effective_user.first_name or '')
+        user = get_user(uid)
+        if is_trainer(user):
+            await message.reply_text(cabinet_text(user), parse_mode=ParseMode.HTML, reply_markup=cabinet_kb())
+            return
+        if not admin_ids():
+            await message.reply_text('Приём заявок пока не настроен. Напиши администратору бота.')
+            return
+        set_user_field(uid, 'trainer_status', 'pending')
+        uname = f' @{update.effective_user.username}' if update.effective_user.username else ''
+        for admin in admin_ids():
+            await notify(context.bot, admin,
+                         f'🎓 Заявка в тренеры: <b>{html.escape(display_name(user))}</b>{html.escape(uname)} '
+                         f'(ID <code>{uid}</code>)',
+                         kb([[('✅ Одобрить', f'ad:tok:{uid}'), ('❌ Отклонить', f'ad:tno:{uid}')]]))
+        await message.reply_text('✅ Заявка отправлена. Как только её одобрят, я пришлю уведомление.')
+        return
+    if not is_trainer(user):
+        return
+    if data == 'tr:home':
+        await message.reply_text(cabinet_text(user), parse_mode=ParseMode.HTML, reply_markup=cabinet_kb())
+    elif data == 'tr:levels':
+        await message.reply_text(levels_text(referral_stats(uid)[1]), parse_mode=ParseMode.HTML,
+                                 reply_markup=kb([[('⬅️ Кабинет', 'tr:home')]]))
+    elif data == 'tr:links':
+        await message.reply_text(links_text(user, context.bot.username), parse_mode=ParseMode.HTML,
+                                 reply_markup=kb([[('➕ Создать ссылку', 'tr:newlink')], [('⬅️ Кабинет', 'tr:home')]]),
+                                 disable_web_page_preview=True)
+    elif data == 'tr:newlink':
+        context.user_data['await'] = 'link_label'
+        await message.reply_text('Как назвать ссылку? Например: «Instagram», «Зал на Ленина», «Сторис». '
+                                 'Название видишь только ты — по нему понятно, откуда пришли люди.')
+    elif data == 'tr:clients':
+        clients = trainer_clients(uid)
+        if not clients:
+            await message.reply_text('Подопечных пока нет. Отправь клиенту свою реферальную ссылку — '
+                                     'после его согласия он появится здесь.',
+                                     reply_markup=kb([[('🔗 Мои ссылки', 'tr:links')]]))
+            return
+        rows = []
+        for c in clients:
+            week = len(finished_workouts(c['user_id'], since=now() - timedelta(days=7)))
+            plan = c.get('days') or '—'
+            sub = '💳' if has_subscription(c) else '▫️'
+            rows.append([(f'{sub} {display_name(c)} · {week}/{plan} за неделю', f'tr:c:{c["user_id"]}')])
+        rows.append([('⬅️ Кабинет', 'tr:home')])
+        await message.reply_text(f'👥 Подопечные ({len(clients)}). 💳 — с подпиской.', reply_markup=kb(rows))
+    else:
+        await trainer_client_callback(parts, update, context, user)
+
+
+def own_client(trainer_id, cid_text):
+    if not cid_text.isdigit():
+        return None
+    client = get_user(int(cid_text))
+    return client if client and client.get('trainer_id') == trainer_id else None
+
+
+async def trainer_client_callback(parts, update, context, trainer):
+    """Действия тренера с подопечным и конструктор тренировки."""
+    message = update.callback_query.message
+    uid = trainer['user_id']
+    action = parts[1]
+    build = context.user_data.get('build')
+
+    # --- конструктор тренировки ---
+    if action in ('ba', 'bp', 'bpd', 'bg', 'be', 'bs', 'br', 'bw', 'bx', 'bn', 'bok', 'bd', 'bc'):
+        if not build or not own_client(uid, str(build['client'])):
+            await message.reply_text('Конструктор закрыт. Открой подопечного и нажми «🎯 Назначить тренировку».')
+            return
+        client = get_user(build['client'])
+        if action == 'bc':
+            context.user_data.pop('build', None)
+            context.user_data.pop('await', None)
+            await message.reply_text('Отменено.', reply_markup=client_card_kb(client['user_id']))
+        elif action == 'ba':
+            buttons = [(name, f'tr:bg:{key}') for key, name in GROUPS.items()]
+            await message.reply_text('Группа мышц:', reply_markup=kb([buttons[i:i + 2] for i in range(0, len(buttons), 2)]))
+        elif action == 'bg' and len(parts) == 3 and parts[2] in GROUPS:
+            icons = {GYM: '🏢', HOME: '🏠'}
+            rows = [[(f'{e.name} {"".join(icons[p] for p in e.places)}', f'tr:be:{e.id}')]
+                    for e in _EXERCISE_LIST if e.group == parts[2]]
+            await message.reply_text(f'{GROUPS[parts[2]]} — упражнение (🏢 зал, 🏠 дом):', reply_markup=kb(rows))
+        elif action == 'be' and len(parts) == 3 and parts[2] in EXERCISES:
+            build['cur'] = {'ex': parts[2]}
+            await message.reply_text(f'{EXERCISES[parts[2]].name} — сколько подходов?',
+                                     reply_markup=kb([[(str(n), f'tr:bs:{n}') for n in range(1, 7)]]))
+        elif action == 'bs' and len(parts) == 3 and parts[2].isdigit() and build.get('cur'):
+            build['cur']['sets'] = int(parts[2])
+            ex = EXERCISES[build['cur']['ex']]
+            presets = SEC_PRESETS if ex.unit == 'sec' else REP_PRESETS
+            unit = ' сек' if ex.unit == 'sec' else ''
+            buttons = [(f'{lo}{unit}' if lo == hi else f'{lo}–{hi}{unit}', f'tr:br:{lo}:{hi}') for lo, hi in presets]
+            await message.reply_text('Сколько ' + ('секунд?' if ex.unit == 'sec' else 'повторов?'),
+                                     reply_markup=kb([buttons[:3], buttons[3:]]))
+        elif action == 'br' and len(parts) == 4 and parts[2].isdigit() and parts[3].isdigit() and build.get('cur'):
+            build['cur']['lo'], build['cur']['hi'] = int(parts[2]), int(parts[3])
+            ex = EXERCISES[build['cur']['ex']]
+            if ex.unit == 'sec':
+                await add_build_item(message, context, None)
+                return
+            context.user_data['await'] = 'build_weight'
+            what = EQUIPMENT[equipment_of(ex)][1]
+            await message.reply_text(f'Рабочий вес ({what})? Отправь число в кг или нажми «Без веса» — '
+                                     'тогда подопечный подберёт вес сам.',
+                                     reply_markup=kb([[('Без веса', 'tr:bw')]]))
+        elif action == 'bw':
+            context.user_data.pop('await', None)
+            await add_build_item(message, context, None)
+        elif action == 'bx':
+            if build['items']:
+                build['items'].pop()
+            await show_builder(message, context)
+        elif action == 'bn':
+            context.user_data['await'] = 'build_note'
+            await message.reply_text('Напиши комментарий к тренировке (подопечный увидит его перед началом).')
+        elif action == 'bp':
+            if not profile_complete(client):
+                await message.reply_text('Подопечный ещё не заполнил анкету — программы пока нет.')
+                return
+            await message.reply_text('Какой день программы взять за основу?', reply_markup=kb(
+                [[(f'День {i + 1}: {d.title}', f'tr:bpd:{i}')] for i, d in enumerate(user_program(client))]))
+        elif action == 'bpd' and len(parts) == 3 and parts[2].isdigit() and profile_complete(client):
+            day = plan_day(client, int(parts[2]))
+            build['items'] = items_from_day(day)
+            build['title'] = day.title
+            await show_builder(message, context)
+        elif action == 'bok':
+            if not build['items']:
+                return
+            days = [now().date() + timedelta(days=i) for i in range(7)]
+            buttons = [(date_label(d.isoformat()), f'tr:bd:{d.isoformat()}') for d in days]
+            await message.reply_text('На какой день назначить?', reply_markup=kb([buttons[:2], buttons[2:5], buttons[5:]]))
+        elif action == 'bd' and len(parts) == 3:
+            try:
+                day_iso = date.fromisoformat(parts[2]).isoformat()
+            except ValueError:
+                return
+            aid = save_assignment(uid, client['user_id'], day_iso, build['title'], build.get('note') or '', build['items'])
+            context.user_data.pop('build', None)
+            text = (f'🎯 Тренер <b>{html.escape(display_name(trainer))}</b> назначил тренировку на '
+                    f'<b>{date_label(day_iso)}</b>: {html.escape(build["title"])}\n\n'
+                    + '\n'.join(item_line(i, it) for i, it in enumerate(build['items'], 1)))
+            if build.get('note'):
+                text += f'\n\n💬 {html.escape(build["note"])}'
+            sent = await notify(context.bot, client['user_id'], text, kb([[('▶️ Начать', f'cl:go:{aid}')]]))
+            status = 'Подопечный получил уведомление.' if sent else 'Уведомление не доставлено — подопечный увидит её в боте.'
+            await message.reply_text(f'✅ Тренировка назначена на {date_label(day_iso)}. {status}',
+                                     reply_markup=client_card_kb(client['user_id']))
+        return
+
+    # --- подопечный ---
+    if len(parts) < 3:
+        return
+    client = own_client(uid, parts[2])
+    if not client:
+        await message.reply_text('Этот пользователь больше не твой подопечный.')
+        return
+    cid = client['user_id']
+    if action == 'c':
+        await message.reply_text(client_card_text(client), parse_mode=ParseMode.HTML, reply_markup=client_card_kb(cid))
+    elif action == 'h':
+        await message.reply_text(history_text(cid), parse_mode=ParseMode.HTML,
+                                 reply_markup=kb([[('⬅️ К подопечному', f'tr:c:{cid}')]]))
+    elif action == 'msg':
+        context.user_data['await'] = f'msg_to:{cid}'
+        await message.reply_text(f'Напиши сообщение для {display_name(client)} — я перешлю его.')
+    elif action == 'as':
+        context.user_data['build'] = {'client': cid, 'items': [], 'title': 'Тренировка от тренера', 'note': ''}
+        await show_builder(message, context)
+    elif action == 'al':
+        pending = client_assignments(cid)
+        if not pending:
+            await message.reply_text('Невыполненных назначенных тренировок нет.',
+                                     reply_markup=kb([[('⬅️ К подопечному', f'tr:c:{cid}')]]))
+            return
+        rows = [[(f'✖️ {date_label(a["date"])} — {a["title"]}', f'tr:ax:{cid}:{a["id"]}')] for a in pending]
+        rows.append([('⬅️ К подопечному', f'tr:c:{cid}')])
+        await message.reply_text('🎯 Назначенные тренировки (нажми, чтобы отменить):', reply_markup=kb(rows))
+    elif action == 'ax' and len(parts) == 4 and parts[3].isdigit():
+        a = get_assignment(int(parts[3]))
+        if a and a['trainer_id'] == uid and a['status'] == 'pending':
+            set_assignment_status(a['id'], 'cancelled')
+            await notify(context.bot, cid, f'Тренер отменил тренировку «{html.escape(a["title"])}» '
+                                           f'на {date_label(a["date"])}.')
+            await message.reply_text('Отменено.', reply_markup=client_card_kb(cid))
+    elif action == 'ed':
+        if not profile_complete(client):
+            await message.reply_text('Подопечный ещё не заполнил анкету.')
+            return
+        rows = [[(('✅ ' if client['goal'] == k else '') + v, f'tr:eg:{cid}:{k}')] for k, v in GOALS.items()]
+        rows += [[(('✅ ' if client['level'] == k else '') + v.split(':')[0], f'tr:el:{cid}:{k}') for k, v in LEVELS.items()]]
+        rows += [[(('✅ ' if client['days'] == d else '') + f'{d} дн.', f'tr:ek:{cid}:{d}') for d in DAY_OPTIONS]]
+        rows += [[(('✅ ' if client['place'] == k else '') + PLACE_SHORT[k], f'tr:ep:{cid}:{k}') for k in PLACES]]
+        rows += [[('🔄 Заменить упражнение', f'tr:sw:{cid}'), ('↩️ Сбросить замены', f'tr:su:{cid}')],
+                 [('⬅️ К подопечному', f'tr:c:{cid}')]]
+        await message.reply_text(f'✏️ Программа {display_name(client)}: цель, опыт, тренировок в неделю, место.',
+                                 reply_markup=kb(rows))
+    elif action in ('eg', 'el', 'ek', 'ep') and len(parts) == 4:
+        field, options, label = {'eg': ('goal', GOALS, 'цель'), 'el': ('level', LEVELS, 'уровень'),
+                                 'ek': ('days', {str(d): f'{d} трен./нед.' for d in DAY_OPTIONS}, 'частота'),
+                                 'ep': ('place', PLACES, 'место')}[action]
+        if parts[3] not in options:
+            return
+        value = int(parts[3]) if field == 'days' else parts[3]
+        set_user_field(cid, field, value)
+        await notify(context.bot, cid, f'✏️ Тренер изменил твою программу: {label} — {html.escape(options[parts[3]])}. '
+                                       f'Смотри «{BTN_PROGRAM}».')
+        await message.reply_text(f'✅ Сохранено: {label} — {options[parts[3]]}. Подопечный получил уведомление.',
+                                 reply_markup=kb([[('✏️ Ещё изменить', f'tr:ed:{cid}'), ('⬅️ К подопечному', f'tr:c:{cid}')]]))
+    elif action == 'su':
+        with connect() as c:
+            c.execute('DELETE FROM user_swaps WHERE user_id=?', (cid,))
+        await notify(context.bot, cid, '↩️ Тренер вернул исходные упражнения программы.')
+        await message.reply_text('Замены сброшены.', reply_markup=client_card_kb(cid))
+    elif action == 'sw':
+        await message.reply_text('В каком дне заменить упражнение?', reply_markup=kb(
+            [[(f'День {i + 1}: {d.title}', f'tr:sd:{cid}:{i}')] for i, d in enumerate(user_program(client))]))
+    elif action == 'sd' and len(parts) == 4 and parts[3].isdigit():
+        day = user_program(client)[int(parts[3]) % client['days']]
+        await message.reply_text(f'{day.title} — какое упражнение заменить?', reply_markup=kb(
+            [[(f'{i + 1}. {p.exercise.name}', f'tr:se:{cid}:{parts[3]}:{i}')] for i, p in enumerate(day.exercises)]))
+    elif action == 'se' and len(parts) == 5 and parts[3].isdigit() and parts[4].isdigit():
+        di, pos = int(parts[3]) % client['days'], int(parts[4])
+        day = user_program(client)[di]
+        if pos >= len(day.exercises):
+            return
+        rows = [[(alternative_label(e), f'tr:sn:{cid}:{di}:{pos}:{e.id}')]
+                for e in alternatives(day, pos, client['place'])]
+        await message.reply_text(f'Чем заменить «{day.exercises[pos].exercise.name}»?', reply_markup=kb(rows))
+    elif action == 'sn' and len(parts) == 6 and parts[3].isdigit() and parts[4].isdigit() and parts[5] in EXERCISES:
+        di, pos, new = int(parts[3]) % client['days'], int(parts[4]), EXERCISES[parts[5]]
+        base = base_program(client)[di]
+        if pos >= len(base.exercises) or client['place'] not in new.places:
+            return
+        old = user_program(client)[di].exercises[pos].exercise
+        set_swap(cid, client['place'], base.exercises[pos].exercise.id, new.id)
+        await notify(context.bot, cid, f'🔄 Тренер заменил в твоей программе «{html.escape(old.name)}» '
+                                       f'на «{html.escape(new.name)}».')
+        await message.reply_text(f'✅ «{old.name}» → «{new.name}». Подопечный получил уведомление.',
+                                 reply_markup=kb([[('✏️ Ещё изменить', f'tr:ed:{cid}'), ('⬅️ К подопечному', f'tr:c:{cid}')]]))
+
+
+async def add_build_item(message, context, weight):
+    build = context.user_data['build']
+    cur = build.pop('cur', None)
+    if cur and all(k in cur for k in ('ex', 'sets', 'lo', 'hi')):
+        cur['w'] = weight
+        build['items'].append(cur)
+    await show_builder(message, context)
+
+
+# ---------- Подопечный ----------
+
+def my_coach_text(user):
+    trainer = get_user(user['trainer_id'])
+    lines = [f'<b>🎓 Твой тренер: {html.escape(display_name(trainer, "тренер"))}</b>', '']
+    pending = client_assignments(user['user_id'])
+    if pending:
+        lines.append('<b>🎯 Назначенные тренировки</b>')
+        for a in pending:
+            lines.append(f'• {date_label(a["date"])} — {html.escape(a["title"])} ({len(a["items"])} упр.)')
+        lines.append('')
+    else:
+        lines += ['Назначенных тренировок пока нет — занимайся по своей программе.', '']
+    msgs = recent_messages(user['trainer_id'], user['user_id'], 5)
+    if msgs:
+        lines.append('<b>💬 Переписка</b>')
+        for m in msgs:
+            who = 'Ты' if m['from_id'] == user['user_id'] else 'Тренер'
+            lines.append(f'{who}: {html.escape(m["text"][:200])}')
+    return '\n'.join(lines)
+
+
+def my_coach_kb(user):
+    rows = [[(f'▶️ {date_label(a["date"])}: {a["title"]}', f'cl:go:{a["id"]}')]
+            for a in client_assignments(user['user_id'])[:5]]
+    rows.append([('💬 Написать тренеру', 'cl:msg')])
+    rows.append([('👋 Отключиться от тренера', 'cl:leave')])
+    return kb(rows)
+
+
+async def show_my_coach(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user = get_user(update.effective_user.id)
+    if not user or not user.get('trainer_id'):
+        await update.effective_message.reply_text('У тебя пока нет тренера.')
+        return
+    await update.effective_message.reply_text(my_coach_text(user), parse_mode=ParseMode.HTML, reply_markup=my_coach_kb(user))
+
+
+async def handle_ref_start(update, context, code):
+    """Пользователь пришёл по реферальной ссылке тренера."""
+    uid = update.effective_user.id
+    message = update.effective_message
+    link = get_ref_link(code)
+    if not link:
+        return
+    tid = link['trainer_id']
+    trainer = get_user(tid)
+    if tid == uid:
+        await message.reply_text('Это твоя реферальная ссылка 🙂 Отправь её клиентам.')
+        return
+    ensure_user_row(uid, update.effective_user.first_name or '')
+    user = get_user(uid)
+    if not user.get('referred_by'):
+        with connect() as c:
+            c.execute('UPDATE users SET referred_by=?, ref_code=? WHERE user_id=?', (tid, code, uid))
+        await notify(context.bot, tid, f'🎉 По ссылке «{html.escape(link["label"] or "")}» пришёл новый пользователь: '
+                                       f'<b>{html.escape(display_name(user))}</b>.')
+    if user.get('trainer_id') == tid:
+        return
+    if user.get('trainer_id'):
+        await message.reply_text('У тебя уже есть тренер. Чтобы сменить, сначала отключись от текущего в «🎓 Мой тренер».')
+        return
+    await message.reply_text(
+        f'🎓 Тебя пригласил тренер <b>{html.escape(display_name(trainer, "тренер"))}</b>.\n\n'
+        'Если подключишься, тренер будет видеть твои тренировки, прогресс, рекорды и вес '
+        '(данные менструального цикла — нет), сможет назначать тренировки, корректировать программу '
+        'и писать тебе сообщения. Отключиться можно в любой момент.',
+        parse_mode=ParseMode.HTML,
+        reply_markup=kb([[('✅ Подключиться к тренеру', f'cl:join:{code}')], [('Без тренера', 'cl:nojoin')]]))
+
+
+async def client_callback(data, update, context):
+    message = update.callback_query.message
+    uid = update.effective_user.id
+    user = get_user(uid)
+    parts = data.split(':')
+    if parts[1] == 'join' and len(parts) == 3:
+        link = get_ref_link(parts[2])
+        if not link or not user or user.get('trainer_id') or link['trainer_id'] == uid:
+            return
+        set_user_field(uid, 'trainer_id', link['trainer_id'])
+        trainer = get_user(link['trainer_id'])
+        await message.edit_text(f'✅ Ты подключён к тренеру {display_name(trainer, "")}. '
+                                'Назначенные тренировки и сообщения появятся в «🎓 Мой тренер».')
+        if profile_complete(user):
+            await message.reply_text('Меню обновлено 👇', reply_markup=menu_for(get_user(uid)))
+        await notify(context.bot, link['trainer_id'],
+                     f'👥 Новый подопечный: <b>{html.escape(display_name(user))}</b>. Он в «{BTN_CABINET}» → «Подопечные».',
+                     kb([[('👤 Открыть', f'tr:c:{uid}')]]))
+    elif parts[1] == 'nojoin':
+        await message.edit_text('Хорошо, занимайся самостоятельно. Подключиться к тренеру можно позже по его ссылке.')
+    elif parts[1] == 'msg' and user and user.get('trainer_id'):
+        context.user_data['await'] = f'msg_to:{user["trainer_id"]}'
+        await message.reply_text('Напиши сообщение тренеру — я перешлю его.')
+    elif parts[1] == 'leave' and user and user.get('trainer_id'):
+        await message.reply_text('Отключиться от тренера? Он перестанет видеть твой прогресс.',
+                                 reply_markup=kb([[('Да, отключиться', 'cl:leave2'), ('Отмена', 'cl:stay')]]))
+    elif parts[1] == 'leave2' and user and user.get('trainer_id'):
+        tid = user['trainer_id']
+        set_user_field(uid, 'trainer_id', None)
+        for a in client_assignments(uid):
+            set_assignment_status(a['id'], 'cancelled')
+        await notify(context.bot, tid, f'👋 {html.escape(display_name(user))} отключился от тренировок с тобой.')
+        await message.reply_text('Готово, ты больше не подключён к тренеру.', reply_markup=menu_for(get_user(uid)))
+    elif parts[1] == 'stay':
+        await message.edit_text('Остаёмся с тренером 💪')
+    elif parts[1] == 'go' and len(parts) == 3 and parts[2].isdigit():
+        await start_assigned_workout(message, context, user, int(parts[2]))
+
+
+async def start_assigned_workout(message, context, user, aid):
+    a = get_assignment(aid)
+    if not a or a['client_id'] != user['user_id']:
+        return
+    if a['status'] != 'pending':
+        await message.reply_text('Эта тренировка уже выполнена или отменена.')
+        return
+    if not profile_complete(user):
+        await message.reply_text('Сначала заполни короткую анкету — /start.')
+        return
+    if context.user_data.get('wk'):
+        await message.reply_text('Сначала заверши текущую тренировку.')
+        return
+    wid = start_workout(user['user_id'], -1, f'🎯 {a["title"]}')
+    context.user_data['wk'] = {
+        'wid': wid, 'day': user['day_index'], 'ex_pos': 0, 'set_no': 1,
+        'mods': {'sets': 0, 'rest': 0, 'no_progress': False, 'notes': []},
+        'place': place_today(user, context.user_data), 'stage': 'warmup',
+        'weights': {it['ex']: float(it['w']) for it in a['items'] if it.get('w')},
+        'assigned': aid, 'items': a['items'], 'atitle': a['title'], 'anote': a['note'],
+        'started': now().isoformat(timespec='seconds')}
+    context.user_data.pop('await', None)
+    if a['note']:
+        await message.reply_text(f'💬 Комментарий тренера: {a["note"]}')
+    await start_cardio_stage(message, context, user, 'warmup')
+
+
+async def deliver_message(update, context, to_id, text):
+    """Сообщение между тренером и подопечным (в обе стороны)."""
+    uid = update.effective_user.id
+    me, other = get_user(uid), get_user(to_id)
+    allowed = other and ((other.get('trainer_id') == uid and is_trainer(me)) or (me and me.get('trainer_id') == to_id))
+    message = update.effective_message
+    if not allowed:
+        await message.reply_text('Не получилось отправить: вы больше не связаны как тренер и подопечный.')
+        return
+    save_message(uid, to_id, text)
+    if other.get('trainer_id') == uid:
+        head = f'💬 <b>Сообщение от тренера {html.escape(display_name(me, ""))}</b>'
+        markup = kb([[('↩️ Ответить', 'cl:msg')]])
+    else:
+        head = f'💬 <b>Сообщение от подопечного {html.escape(display_name(me))}</b>'
+        markup = kb([[('↩️ Ответить', f'tr:msg:{uid}'), ('👤 Профиль', f'tr:c:{uid}')]])
+    sent = await notify(context.bot, to_id, f'{head}\n\n{html.escape(text)}', markup)
+    await message.reply_text('✅ Отправлено.' if sent else '⚠️ Сохранил, но доставить не удалось — '
+                                                          'возможно, получатель остановил бота.')
+
+
+# ---------- Админ: тренеры, приглашения, подписки ----------
+
+def create_trainer_invite(admin_id):
+    alphabet = 'abcdefghijkmnpqrstuvwxyz23456789'
+    with connect() as c:
+        for _ in range(20):
+            code = ''.join(secrets.choice(alphabet) for _ in range(10))
+            if not c.execute('SELECT 1 FROM trainer_invites WHERE code=?', (code,)).fetchone():
+                c.execute('INSERT INTO trainer_invites(code, created_by, created_at) VALUES(?,?,?)',
+                          (code, admin_id, now().isoformat(timespec='seconds')))
+                return code
+    raise RuntimeError('Не удалось создать код приглашения')
+
+
+def use_trainer_invite(code, uid):
+    """True — если приглашение действительно и теперь использовано этим пользователем."""
+    with connect() as c:
+        cur = c.execute('UPDATE trainer_invites SET used_by=?, used_at=? WHERE code=? AND used_by IS NULL',
+                        (uid, now().isoformat(timespec='seconds'), code))
+        return cur.rowcount == 1
+
+
+def make_trainer(uid):
+    with connect() as c:
+        c.execute("UPDATE users SET is_trainer=1, trainer_status='approved' WHERE user_id=?", (uid,))
+
+
+def admin_trainers_text():
+    with connect() as c:
+        trainers = [dict(r) for r in c.execute('SELECT * FROM users WHERE is_trainer=1 ORDER BY name')]
+        pending = [dict(r) for r in c.execute("SELECT * FROM users WHERE trainer_status='pending' AND is_trainer=0")]
+    lines = ['<b>🎓 Тренеры</b>', '']
+    if not trainers:
+        lines.append('Тренеров пока нет.')
+    for t in trainers:
+        invited, subs = referral_stats(t['user_id'])
+        name, _, percent, _ = trainer_level(subs)[1]
+        lines.append(f'• {html.escape(display_name(t))} (ID <code>{t["user_id"]}</code>) — {name} {percent}%, '
+                     f'подписчиков {subs}, пришло {invited}, подопечных {len(trainer_clients(t["user_id"]))}')
+    if pending:
+        lines += ['', f'⏳ Заявок на рассмотрении: {len(pending)}']
+    lines += ['', 'Пригласи тренера одноразовой ссылкой — по ней он сразу получит кабинет без заявки.']
+    return '\n'.join(lines), pending
+
+
+def add_subscription(uid, days):
+    """Продлевает подписку на days дней (0 или меньше — отменяет). Возвращает новую дату или None."""
+    user = get_user(uid)
+    if not user:
+        return False
+    if days <= 0:
+        set_user_field(uid, 'sub_until', None)
+        return None
+    start = max(now().date(), date.fromisoformat(user['sub_until'])) if user.get('sub_until') else now().date()
+    until = (start + timedelta(days=days)).isoformat()
+    set_user_field(uid, 'sub_until', until)
+    return until
+
+
+async def grant_subscription(message, context, text):
+    m = re.fullmatch(r'\s*(\d{4,})\s+(-?\d{1,4})\s*', text or '')
+    if not m:
+        await message.reply_text('Формат: <code>ID ДНЕЙ</code>, например <code>123456789 30</code>. '
+                                 '0 — отменить подписку.', parse_mode=ParseMode.HTML)
+        return False
+    uid, days = int(m.group(1)), int(m.group(2))
+    result = add_subscription(uid, days)
+    if result is False:
+        await message.reply_text('Пользователь с таким ID не найден (он должен хотя бы раз запустить бота).')
+        return False
+    user = get_user(uid)
+    if result:
+        until = f'{date.fromisoformat(result):%d.%m.%Y}'
+        await notify(context.bot, uid, f'💳 Подписка активна до <b>{until}</b>. Спасибо! 💪')
+        await message.reply_text(f'✅ {display_name(user)}: подписка до {until}.')
+    else:
+        await message.reply_text(f'Подписка {display_name(user)} отменена.')
+    return True
+
+
+async def sub_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not is_admin(update.effective_user.id):
+        return
+    await grant_subscription(update.effective_message, context, ' '.join(context.args or []))
+
+
+async def handle_coach_invite(update, context, code):
+    uid = update.effective_user.id
+    message = update.effective_message
+    ensure_user_row(uid, update.effective_user.first_name or '')
+    user = get_user(uid)
+    if is_trainer(user):
+        await message.reply_text('Ты уже в партнёрской программе 🙂', reply_markup=menu_for(user))
+        return True
+    if not use_trainer_invite(code, uid):
+        await message.reply_text('Ссылка-приглашение недействительна или уже использована. '
+                                 'Попроси у администратора новую.')
+        return False
+    make_trainer(uid)
+    user = get_user(uid)
+    uname = f' @{update.effective_user.username}' if update.effective_user.username else ''
+    for admin in admin_ids():
+        await notify(context.bot, admin, f'🎓 По приглашению подключился тренер: <b>{html.escape(display_name(user))}</b>'
+                                         f'{html.escape(uname)} (ID <code>{uid}</code>).')
+    await message.reply_text('🎉 Добро пожаловать в партнёрскую программу! Кабинет тренера — кнопка '
+                             f'«{BTN_CABINET}» в меню.', reply_markup=menu_for(user))
+    await message.reply_text(cabinet_text(user), parse_mode=ParseMode.HTML, reply_markup=cabinet_kb())
+    return True
+
+
 def build_app(token):
     init_db()
     STATE_PATH.parent.mkdir(parents=True, exist_ok=True)
@@ -2960,6 +3988,9 @@ def build_app(token):
     app.add_handler(CommandHandler('settings', settings))
     app.add_handler(CommandHandler('finish', finish_command))
     app.add_handler(CommandHandler('group', group_command))
+    app.add_handler(CommandHandler('trainer', trainer_cabinet))
+    app.add_handler(CommandHandler('coach', show_my_coach))
+    app.add_handler(CommandHandler('sub', sub_command))
     app.add_handler(CommandHandler('cancel', cancel))
     app.add_handler(CommandHandler('backup', backup_command))
     app.add_handler(CommandHandler('admin', admin_command))
