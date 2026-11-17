@@ -76,7 +76,7 @@ TZ_NAME = os.environ.get('FITNESS_TZ', 'Europe/Moscow')
 log = logging.getLogger('fitness_bot')
 
 # Версия кода: видна в «🛠 Админ» и в логах запуска — по ней видно, обновился ли бот на хостинге.
-BOT_VERSION = '2026-11-17 · API приложения'
+BOT_VERSION = '2026-11-17 · начисления и выплаты'
 
 
 def now():
@@ -764,6 +764,20 @@ def init_db():
             status TEXT DEFAULT 'pending', created_at TEXT, decided_at TEXT);
         CREATE TABLE IF NOT EXISTS coaching(
             id INTEGER PRIMARY KEY AUTOINCREMENT, trainer_id INTEGER, client_id INTEGER, started_at TEXT, ended_at TEXT);
+        CREATE TABLE IF NOT EXISTS payments(
+            id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER, amount REAL, kind TEXT, days INTEGER,
+            paid_at TEXT, source TEXT, note TEXT, refunded_at TEXT);
+        CREATE TABLE IF NOT EXISTS commissions(
+            id INTEGER PRIMARY KEY AUTOINCREMENT, payment_id INTEGER, trainer_id INTEGER, client_id INTEGER, type TEXT,
+            base_amount REAL, percent REAL, amount REAL, status TEXT, created_at TEXT, available_at TEXT,
+            payout_id INTEGER);
+        CREATE TABLE IF NOT EXISTS payouts(
+            id INTEGER PRIMARY KEY AUTOINCREMENT, trainer_id INTEGER, amount REAL, status TEXT, created_at TEXT,
+            paid_at TEXT, legal_status TEXT, full_name TEXT, inn TEXT, method TEXT, details TEXT);
+        CREATE TABLE IF NOT EXISTS trainer_requisites(
+            user_id INTEGER PRIMARY KEY, legal_status TEXT, full_name TEXT, inn TEXT, method TEXT, details TEXT,
+            updated_at TEXT);
+        CREATE INDEX IF NOT EXISTS commissions_trainer ON commissions(trainer_id, status);
         CREATE TABLE IF NOT EXISTS login_codes(
             code TEXT PRIMARY KEY, user_id INTEGER, created_at TEXT);
         CREATE TABLE IF NOT EXISTS api_sessions(
@@ -2682,6 +2696,32 @@ async def text_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         context.user_data.pop('await', None)
         await deliver_message(update, context, int(awaiting.split(':')[1]), text[:2000])
         return
+    if awaiting in ('req_name', 'req_inn', 'req_details') and isinstance(context.user_data.get('req'), dict):
+        req = context.user_data['req']
+        if awaiting == 'req_name':
+            if len(text.split()) < 2:
+                await message.reply_text('Нужны фамилия и имя (и отчество, если есть).')
+                return
+            req['full_name'] = text.strip()[:120]
+            context.user_data['await'] = 'req_inn'
+            await message.reply_text('ИНН — 12 цифр.')
+        elif awaiting == 'req_inn':
+            inn = re.sub(r'\D', '', text)
+            if not valid_inn(inn, req.get('legal_status')):
+                await message.reply_text('ИНН не прошёл проверку — проверь 12 цифр и отправь ещё раз.')
+                return
+            req['inn'] = inn
+            context.user_data.pop('await', None)
+            await message.reply_text('Куда переводить?', reply_markup=kb([[(v, f'tr:rm:{k}')] for k, v in PAYOUT_METHODS.items()]))
+        else:
+            req['details'] = text.strip()[:200]
+            context.user_data.pop('await', None)
+            context.user_data.pop('req', None)
+            if all(req.get(k) for k in ('legal_status', 'full_name', 'inn', 'method')):
+                save_requisites(uid, req['legal_status'], req['full_name'], req['inn'], req['method'], req['details'])
+                await message.reply_text('✅ Реквизиты сохранены. Выплата придёт в ближайший расчётный период.',
+                                         reply_markup=kb([[('💰 Начисления', 'tr:money')]]))
+        return
     if awaiting == 'ad_sub' and is_admin(uid):
         if await grant_subscription(message, context, text):
             context.user_data.pop('await', None)
@@ -2883,6 +2923,7 @@ async def admin_panel(update: Update, context: ContextTypes.DEFAULT_TYPE):
 def admin_menu_kb():
     return kb([[('📸 Фото упражнений', 'ad:groups')],
                [('🎓 Тренеры', 'ad:tr'), ('💳 Выдать подписку', 'ad:sub')],
+               [('💸 Выплаты тренерам', 'ad:pay')],
                [('💾 Резервная копия базы', 'ad:backup')]])
 
 
@@ -2988,9 +3029,33 @@ async def admin_callback(data, update, context):
                                  parse_mode=ParseMode.HTML, disable_web_page_preview=True)
     elif data == 'ad:sub':
         context.user_data['await'] = 'ad_sub'
-        await message.reply_text('💳 Отправь <code>ID ДНЕЙ</code>, например <code>123456789 30</code> — подписка '
-                                 'продлится на 30 дней. 0 — отменить. ID видно в карточке подопечного у тренера '
-                                 'или пользователь может узнать его у @userinfobot.', parse_mode=ParseMode.HTML)
+        await message.reply_text(SUB_HELP, parse_mode=ParseMode.HTML)
+    elif data == 'ad:pay':
+        await message.reply_text(admin_payouts_text(), parse_mode=ParseMode.HTML, reply_markup=admin_payouts_kb())
+    elif data == 'ad:payreg':
+        created, missing = create_payout_registry()
+        for tid, total in missing:
+            await notify(context.bot, tid, f'💰 У тебя {money(total)} к выплате, но не заполнены реквизиты. '
+                                           'Кабинет → «💰 Начисления и выплаты» → «🧾 Реквизиты».')
+        ids = [p['id'] for p in open_payouts()]
+        if ids:
+            await message.reply_document(registry_csv(ids), filename=f'payouts_{now():%Y-%m-%d}.csv',
+                                         caption='Реестр выплат (открывается в Excel). После перевода отметь каждую выплату.')
+        note = f'Новых выплат: {len(created)}.'
+        if missing:
+            note += f' Без реквизитов: {len(missing)} — им отправлено напоминание.'
+        await message.reply_text(note + '\n\n' + admin_payouts_text(), parse_mode=ParseMode.HTML,
+                                 reply_markup=admin_payouts_kb())
+    elif parts[1] == 'paid' and len(parts) == 3 and parts[2].isdigit():
+        p = mark_payout_paid(int(parts[2]))
+        if not p:
+            await message.reply_text('Эта выплата уже отмечена.')
+            return
+        await notify(context.bot, p['trainer_id'], f'💸 Выплата <b>{money(p["amount"])}</b> отправлена '
+                                                   f'({PAYOUT_METHODS.get(p["method"], "")} {mask(p["details"])}). '
+                                                   'Не забудь сформировать чек, если ты самозанятый 🧾')
+        await message.reply_text(f'✅ Выплата №{p["id"]} отмечена.\n\n' + admin_payouts_text(), parse_mode=ParseMode.HTML,
+                                 reply_markup=admin_payouts_kb())
     elif parts[1] in ('tok', 'tno') and len(parts) == 3 and parts[2].isdigit():
         tid = int(parts[2])
         target = get_user(tid)
@@ -3488,6 +3553,237 @@ async def notify(bot, uid, text, markup=None):
         return False
 
 
+# ---------- Оплаты, начисления тренерам и выплаты ----------
+# Правила:
+# • тариф с тренером (COACH) — тренеру, который ведёт подопечного, доля COACH_SHARE % от оплаты;
+# • тариф без тренера — пригласившему тренеру реферальные 20–40 % по его уровню на дату оплаты, пока человек платит;
+# • начисление 14 дней «ожидает» (возвраты), потом «доступно»; выплата раз в месяц по реестру, от MIN_PAYOUT ₽;
+# • выплаты только самозанятым и ИП с заполненными реквизитами;
+# • возврат отменяет начисление, а если оно уже выплачено — создаёт удержание из следующей выплаты.
+
+def _env_float(name, default):
+    try:
+        return float((os.environ.get(name) or str(default)).replace(',', '.'))
+    except ValueError:
+        return float(default)
+
+
+def coach_share():
+    return _env_float('COACH_SHARE', 60)
+
+
+def hold_days():
+    return int(_env_float('COMMISSION_HOLD_DAYS', 14))
+
+
+def min_payout():
+    return _env_float('MIN_PAYOUT', 1000)
+
+
+LEGAL_STATUSES = {'npd': 'Самозанятый (НПД)', 'ip': 'ИП'}
+PAYOUT_METHODS = {'card': 'Карта', 'sbp': 'СБП (по номеру телефона)', 'account': 'Расчётный счёт'}
+COMMISSION_STATUSES = {'pending': 'ожидает', 'available': 'доступно', 'paid': 'выплачено', 'cancelled': 'отменено'}
+
+
+def money(x):
+    x = round(float(x or 0), 2)
+    whole = f'{int(abs(x)):,}'.replace(',', ' ')
+    frac = f'{abs(x) - int(abs(x)):.2f}'[1:].replace('.', ',')
+    return ('−' if x < 0 else '') + whole + ('' if frac == ',00' else frac) + ' ₽'
+
+
+def record_payment(uid, amount, kind='self', days=None, source='manual', note=''):
+    """Оплата подписки: сохраняет её и начисляет тренерам. kind: 'self' — без тренера, 'coach' — с тренером."""
+    user = get_user(uid)
+    stamp = now()
+    with connect() as c:
+        pid = c.execute('INSERT INTO payments(user_id, amount, kind, days, paid_at, source, note) VALUES(?,?,?,?,?,?,?)',
+                        (uid, amount, kind, days, stamp.isoformat(timespec='seconds'), source, note)).lastrowid
+    available_at = (stamp + timedelta(days=hold_days())).isoformat(timespec='seconds')
+    rows = []
+    if kind == 'coach' and user and user.get('trainer_id'):
+        pct = coach_share()
+        rows.append((user['trainer_id'], 'coaching', pct))
+    elif kind == 'self' and user and user.get('referred_by'):
+        pct = trainer_level(referral_stats(user['referred_by'])[1])[1][2]
+        rows.append((user['referred_by'], 'referral', pct))
+    with connect() as c:
+        for tid, ctype, pct in rows:
+            c.execute('''INSERT INTO commissions(payment_id, trainer_id, client_id, type, base_amount, percent, amount,
+                         status, created_at, available_at) VALUES(?,?,?,?,?,?,?, 'pending', ?, ?)''',
+                      (pid, tid, uid, ctype, amount, pct, round(amount * pct / 100, 2),
+                       stamp.isoformat(timespec='seconds'), available_at))
+    return pid
+
+
+def refund_payment(pid):
+    """Возврат: отменяет начисления; уже выплаченные — удерживаются из следующей выплаты."""
+    stamp = now().isoformat(timespec='seconds')
+    with connect() as c:
+        pay = c.execute('SELECT * FROM payments WHERE id=?', (pid,)).fetchone()
+        if not pay or pay['refunded_at']:
+            return False
+        c.execute('UPDATE payments SET refunded_at=? WHERE id=?', (stamp, pid))
+        for com in c.execute('SELECT * FROM commissions WHERE payment_id=? AND amount>0', (pid,)).fetchall():
+            if com['status'] in ('pending', 'available'):
+                c.execute("UPDATE commissions SET status='cancelled' WHERE id=?", (com['id'],))
+            elif com['status'] == 'paid':
+                c.execute('''INSERT INTO commissions(payment_id, trainer_id, client_id, type, base_amount, percent, amount,
+                             status, created_at, available_at) VALUES(?,?,?, 'refund', ?, ?, ?, 'available', ?, ?)''',
+                          (pid, com['trainer_id'], com['client_id'], -com['base_amount'], com['percent'],
+                           -com['amount'], stamp, stamp))
+    return True
+
+
+def refresh_commissions():
+    """Ожидающие начисления, у которых прошёл срок удержания, становятся доступными."""
+    with connect() as c:
+        c.execute("UPDATE commissions SET status='available' WHERE status='pending' AND available_at<=?",
+                  (now().isoformat(timespec='seconds'),))
+
+
+def trainer_balance(tid):
+    refresh_commissions()
+    with connect() as c:
+        rows = c.execute('SELECT status, SUM(amount) FROM commissions WHERE trainer_id=? GROUP BY status', (tid,)).fetchall()
+    sums = {r[0]: round(r[1] or 0, 2) for r in rows}
+    return {k: sums.get(k, 0.0) for k in ('pending', 'available', 'paid')}
+
+
+def trainer_commissions(tid, limit=30):
+    sql = ('SELECT c.*, u.name AS client_name FROM commissions c LEFT JOIN users u ON u.user_id=c.client_id '
+           'WHERE c.trainer_id=? ORDER BY c.id DESC LIMIT ?')
+    with connect() as c:
+        return [dict(r) for r in c.execute(sql, (tid, limit))]
+
+
+def get_requisites(tid):
+    with connect() as c:
+        row = c.execute('SELECT * FROM trainer_requisites WHERE user_id=?', (tid,)).fetchone()
+    return dict(row) if row else None
+
+
+def valid_inn(inn, status):
+    """ИНН физлица/ИП — 12 цифр с контрольными числами."""
+    if not re.fullmatch(r'\d{12}', inn or ''):
+        return False
+    d = [int(x) for x in inn]
+    c1 = sum(w * x for w, x in zip([7, 2, 4, 10, 3, 5, 9, 4, 6, 8], d)) % 11 % 10
+    c2 = sum(w * x for w, x in zip([3, 7, 2, 4, 10, 3, 5, 9, 4, 6, 8], d)) % 11 % 10
+    return d[10] == c1 and d[11] == c2
+
+
+def save_requisites(tid, legal_status, full_name, inn, method, details):
+    with connect() as c:
+        c.execute('''INSERT OR REPLACE INTO trainer_requisites(user_id, legal_status, full_name, inn, method, details, updated_at)
+                     VALUES(?,?,?,?,?,?,?)''', (tid, legal_status, full_name, inn, method, details, now().isoformat(timespec='seconds')))
+
+
+def requisites_ok(req):
+    return bool(req and req.get('legal_status') in LEGAL_STATUSES and req.get('full_name') and
+                valid_inn(req.get('inn'), req.get('legal_status')) and req.get('method') in PAYOUT_METHODS and req.get('details'))
+
+
+def mask(text, keep=4):
+    """Скрывает реквизиты: «•••• 9012»."""
+    text = str(text or '')
+    digits = re.sub(r'\D', '', text)
+    if len(digits) >= 8:
+        return '•••• ' + digits[-keep:]
+    return ('••••' + text[-keep:]) if len(text) > keep else text
+
+
+def create_payout_registry():
+    """Создаёт выплаты всем тренерам с доступной суммой от MIN_PAYOUT ₽ и реквизитами.
+    Возвращает (созданные выплаты, тренеры без реквизитов с их суммами)."""
+    refresh_commissions()
+    created, missing = [], []
+    with connect() as c:
+        totals = c.execute('''SELECT trainer_id, SUM(amount) AS total FROM commissions
+                              WHERE status='available' AND payout_id IS NULL GROUP BY trainer_id HAVING total>0''').fetchall()
+    for row in totals:
+        tid, total = row['trainer_id'], round(row['total'], 2)
+        req = get_requisites(tid)
+        if total < min_payout():
+            continue
+        if not requisites_ok(req):
+            missing.append((tid, total))
+            continue
+        stamp = now().isoformat(timespec='seconds')
+        with connect() as c:
+            pid = c.execute('''INSERT INTO payouts(trainer_id, amount, status, created_at, legal_status, full_name, inn,
+                               method, details) VALUES(?,?, 'created', ?,?,?,?,?,?)''',
+                            (tid, total, stamp, req['legal_status'], req['full_name'], req['inn'], req['method'],
+                             req['details'])).lastrowid
+            c.execute("UPDATE commissions SET payout_id=? WHERE trainer_id=? AND status='available' AND payout_id IS NULL",
+                      (pid, tid))
+        created.append(pid)
+    return created, missing
+
+
+def open_payouts():
+    with connect() as c:
+        return [dict(r) for r in c.execute("SELECT * FROM payouts WHERE status='created' ORDER BY id")]
+
+
+def trainer_payouts(tid, limit=12):
+    with connect() as c:
+        return [dict(r) for r in c.execute('SELECT * FROM payouts WHERE trainer_id=? ORDER BY id DESC LIMIT ?', (tid, limit))]
+
+
+def mark_payout_paid(pid):
+    stamp = now().isoformat(timespec='seconds')
+    with connect() as c:
+        p = c.execute("SELECT * FROM payouts WHERE id=? AND status='created'", (pid,)).fetchone()
+        if not p:
+            return None
+        c.execute("UPDATE payouts SET status='paid', paid_at=? WHERE id=?", (stamp, pid))
+        c.execute("UPDATE commissions SET status='paid' WHERE payout_id=?", (pid,))
+    return dict(p)
+
+
+def registry_csv(payout_ids):
+    """Реестр выплат для бухгалтерии/банка: CSV с BOM, открывается в Excel."""
+    import csv
+    import io
+    buf = io.StringIO()
+    w = csv.writer(buf, delimiter=';')
+    w.writerow(['№ выплаты', 'ID тренера', 'ФИО', 'Статус', 'ИНН', 'Способ', 'Реквизиты', 'Сумма, ₽', 'Начислений'])
+    with connect() as c:
+        for pid in payout_ids:
+            p = c.execute('SELECT * FROM payouts WHERE id=?', (pid,)).fetchone()
+            n = c.execute('SELECT COUNT(*) FROM commissions WHERE payout_id=?', (pid,)).fetchone()[0]
+            w.writerow([p['id'], p['trainer_id'], p['full_name'], LEGAL_STATUSES.get(p['legal_status'], ''), p['inn'],
+                        PAYOUT_METHODS.get(p['method'], ''), p['details'], f'{p["amount"]:.2f}'.replace('.', ','), n])
+    return ('﻿' + buf.getvalue()).encode('utf-8')
+
+
+def commissions_text(trainer):
+    tid = trainer['user_id']
+    b = trainer_balance(tid)
+    req = get_requisites(tid)
+    lines = ['<b>💰 Начисления</b>', '',
+             f'⏳ Ожидает (удержание {hold_days()} дн.): <b>{money(b["pending"])}</b>',
+             f'✅ Доступно к выплате: <b>{money(b["available"])}</b>',
+             f'💸 Выплачено всего: <b>{money(b["paid"])}</b>', '',
+             f'Выплаты — раз в месяц, от {money(min_payout())}. За ведение подопечных (тариф с тренером) — '
+             f'{fmt_w(coach_share())}% оплаты, за приглашённых на тарифы без тренера — процент твоего уровня.', '']
+    if requisites_ok(req):
+        lines.append(f'Реквизиты: {LEGAL_STATUSES[req["legal_status"]]}, ИНН {mask(req["inn"])}, '
+                     f'{PAYOUT_METHODS[req["method"]]} {mask(req["details"])}')
+    else:
+        lines.append('⚠️ Укажи реквизиты — без них выплата невозможна (начисления сохранятся). '
+                     'Выплаты получают только самозанятые и ИП.')
+    recent = trainer_commissions(tid, 8)
+    if recent:
+        lines += ['', '<b>Последние начисления</b>']
+        kinds = {'coaching': 'ведение', 'referral': 'реферал', 'refund': 'возврат'}
+        for r in recent:
+            lines.append(f'• {r["created_at"][:10]} · {html.escape(r["client_name"] or "")} · {kinds.get(r["type"], r["type"])} '
+                         f'{fmt_w(r["percent"])}% · <b>{money(r["amount"])}</b> · {COMMISSION_STATUSES.get(r["status"], r["status"])}')
+    return '\n'.join(lines)
+
+
 # ---------- Кабинет тренера ----------
 
 def cabinet_text(trainer):
@@ -3508,10 +3804,9 @@ def cabinet_text(trainer):
                   progress_bar(frac)]
     else:
         lines += ['', '🏆 У тебя максимальный уровень!']
-    price = sub_price()
-    if price and subs:
-        income = subs * price * percent / 100
-        lines += ['', f'💰 Примерный доход: {subs} × {fmt_w(price)} ₽ × {percent}% ≈ <b>{fmt_w(round(income))} ₽</b>/мес']
+    bal = trainer_balance(tid)
+    if any(bal.values()):
+        lines += ['', f'💰 Доступно к выплате: <b>{money(bal["available"])}</b> · ожидает: {money(bal["pending"])}']
     pending = sum(len(client_assignments(c['user_id'])) for c in clients)
     if pending:
         lines.append(f'🎯 Назначено и ещё не выполнено: {pending}')
@@ -3521,6 +3816,7 @@ def cabinet_text(trainer):
 def cabinet_kb():
     return kb([[('🎯 Назначить тренировку', 'tr:asc')],
                [('🔗 Мои ссылки', 'tr:links'), ('👥 Подопечные', 'tr:clients')],
+               [('💰 Начисления и выплаты', 'tr:money')],
                [('🏆 Уровни программы', 'tr:levels')]])
 
 
@@ -3689,6 +3985,26 @@ async def trainer_callback(data, update, context):
         await message.reply_text(links_text(user, context.bot.username), parse_mode=ParseMode.HTML,
                                  reply_markup=kb([[('➕ Создать ссылку', 'tr:newlink')], [('⬅️ Кабинет', 'tr:home')]]),
                                  disable_web_page_preview=True)
+    elif data == 'tr:money':
+        await message.reply_text(commissions_text(user), parse_mode=ParseMode.HTML,
+                                 reply_markup=kb([[('🧾 Реквизиты для выплат', 'tr:req')], [('⬅️ Кабинет', 'tr:home')]]))
+    elif data == 'tr:req':
+        context.user_data['req'] = {}
+        await message.reply_text('🧾 <b>Реквизиты для выплат</b>\n\nВыплаты получают только самозанятые и ИП: '
+                                 'с каждой выплаты ты формируешь чек (самозанятый — в приложении «Мой налог»). '
+                                 'Какой у тебя статус?', parse_mode=ParseMode.HTML,
+                                 reply_markup=kb([[(v, f'tr:rs:{k}')] for k, v in LEGAL_STATUSES.items()]
+                                                 + [[('⬅️ Отмена', 'tr:money')]]))
+    elif data.startswith('tr:rs:') and data[6:] in LEGAL_STATUSES:
+        context.user_data['req'] = {'legal_status': data[6:]}
+        context.user_data['await'] = 'req_name'
+        await message.reply_text('Напиши ФИО полностью, как в документах.')
+    elif data.startswith('tr:rm:') and data[6:] in PAYOUT_METHODS and context.user_data.get('req', {}).get('inn'):
+        context.user_data['req']['method'] = data[6:]
+        context.user_data['await'] = 'req_details'
+        hint = {'card': 'номер карты (16–19 цифр)', 'sbp': 'номер телефона и банк, например «+79991234567 Т-Банк»',
+                'account': 'р/с, БИК и название банка'}[data[6:]]
+        await message.reply_text(f'Отправь {hint}.')
     elif data == 'tr:newlink':
         context.user_data['await'] = 'link_label'
         await message.reply_text('Как назвать ссылку? Например: «Instagram», «Зал на Ленина», «Сторис». '
@@ -4142,12 +4458,34 @@ def add_subscription(uid, days):
 
 
 async def grant_subscription(message, context, text):
-    m = re.fullmatch(r'\s*(\d{4,})\s+(-?\d{1,4})\s*', text or '')
+    m = re.fullmatch(r'\s*(\d{4,})\s+(-?\d{1,4})(?:\s+(\d+(?:[.,]\d{1,2})?))?(?:\s+(coach|self|тренер|сам))?\s*',
+                     text or '', re.I)
     if not m:
-        await message.reply_text('Формат: <code>ID ДНЕЙ</code>, например <code>123456789 30</code>. '
-                                 '0 — отменить подписку.', parse_mode=ParseMode.HTML)
+        await message.reply_text(SUB_HELP, parse_mode=ParseMode.HTML)
         return False
     uid, days = int(m.group(1)), int(m.group(2))
+    if not get_user(uid):
+        await message.reply_text('Пользователь с таким ID не найден (он должен хотя бы раз запустить бота).')
+        return False
+    paid_note = ''
+    if m.group(3) and days > 0:
+        amount = float(m.group(3).replace(',', '.'))
+        kind = {'тренер': 'coach', 'сам': 'self'}.get((m.group(4) or '').lower(), (m.group(4) or '').lower())
+        if not kind:
+            kind = 'coach' if get_user(uid).get('trainer_id') else 'self'
+        pid = record_payment(uid, amount, kind, days, 'manual', f'admin {message.chat_id}')
+        with connect() as c:
+            coms = c.execute('SELECT trainer_id, type, amount FROM commissions WHERE payment_id=?', (pid,)).fetchall()
+        paid_note = f'\n💳 Оплата №{pid}: {money(amount)} ({"с тренером" if kind == "coach" else "без тренера"}).'
+        for com in coms:
+            paid_note += (f'\n→ {display_name(get_user(com["trainer_id"]))}: {money(com["amount"])} '
+                          f'({"ведение" if com["type"] == "coaching" else "реферал"}), доступно через {hold_days()} дн.')
+            await notify(context.bot, com['trainer_id'], f'💰 Начисление <b>{money(com["amount"])}</b> за оплату '
+                                                         f'{html.escape(display_name(get_user(uid)))}. '
+                                                         f'Станет доступно к выплате через {hold_days()} дн.')
+        if not coms:
+            paid_note += ('\nНачислений нет: у пользователя нет тренера.' if kind == 'coach'
+                          else '\nНачислений нет: пользователь пришёл не по ссылке тренера.')
     result = add_subscription(uid, days)
     if result is False:
         await message.reply_text('Пользователь с таким ID не найден (он должен хотя бы раз запустить бота).')
@@ -4156,10 +4494,61 @@ async def grant_subscription(message, context, text):
     if result:
         until = f'{date.fromisoformat(result):%d.%m.%Y}'
         await notify(context.bot, uid, f'💳 Подписка активна до <b>{until}</b>. Спасибо! 💪')
-        await message.reply_text(f'✅ {display_name(user)}: подписка до {until}.')
+        await message.reply_text(f'✅ {display_name(user)}: подписка до {until}.{paid_note}')
     else:
         await message.reply_text(f'Подписка {display_name(user)} отменена.')
     return True
+
+
+SUB_HELP = ('💳 Отправь <code>ID ДНЕЙ СУММА</code>, например <code>123456789 30 990</code> — подписка продлится на 30 дней, '
+            'оплата 990 ₽ запишется и тренерам начислится их доля. Тариф определяется сам: есть тренер — «с тренером», '
+            'нет — «без тренера»; можно указать явно: <code>123456789 30 990 self</code> или <code>coach</code>.\n'
+            'Без суммы — подарочная подписка без начислений. 0 дней — отменить подписку.\n'
+            'Возврат оплаты: <code>/refund НОМЕР_ОПЛАТЫ</code>.')
+
+
+def admin_payouts_text():
+    refresh_commissions()
+    with connect() as c:
+        rows = c.execute('''SELECT trainer_id, SUM(CASE WHEN status='available' AND payout_id IS NULL THEN amount ELSE 0 END) av,
+                                   SUM(CASE WHEN status='pending' THEN amount ELSE 0 END) pe
+                            FROM commissions GROUP BY trainer_id HAVING av<>0 OR pe<>0''').fetchall()
+    lines = ['<b>💸 Выплаты тренерам</b>', '',
+             f'Начисления «ожидают» {hold_days()} дн. (на случай возврата), потом становятся доступны. '
+             f'Раз в месяц сформируй реестр: в него попадут тренеры с суммой от {money(min_payout())} и реквизитами.', '']
+    for r in rows:
+        req = get_requisites(r['trainer_id'])
+        lines.append(f'• {html.escape(display_name(get_user(r["trainer_id"]) or {"user_id": r["trainer_id"]}))}: '
+                     f'доступно <b>{money(r["av"])}</b>, ожидает {money(r["pe"])}' + ('' if requisites_ok(req) else ' · ⚠️ нет реквизитов'))
+    if not rows:
+        lines.append('Начислений к выплате нет.')
+    op = open_payouts()
+    if op:
+        lines += ['', '<b>Сформированы, ждут перевода:</b>']
+        for p in op:
+            lines.append(f'№{p["id"]} · {html.escape(p["full_name"])} · {LEGAL_STATUSES.get(p["legal_status"], "")} · '
+                         f'<b>{money(p["amount"])}</b>')
+    return '\n'.join(lines)
+
+
+def admin_payouts_kb():
+    rows = [[(f'✅ №{p["id"]} выплачено · {money(p["amount"])}', f'ad:paid:{p["id"]}')] for p in open_payouts()]
+    rows.append([('📄 Сформировать реестр', 'ad:payreg')])
+    rows.append([('⬅️ Админка', 'ad:menu')])
+    return kb(rows)
+
+
+async def refund_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not is_admin(update.effective_user.id):
+        return
+    args = context.args or []
+    if len(args) != 1 or not args[0].isdigit():
+        await update.effective_message.reply_text('Формат: /refund НОМЕР_ОПЛАТЫ (номер приходит при выдаче подписки).')
+        return
+    ok = refund_payment(int(args[0]))
+    await update.effective_message.reply_text('↩️ Возврат учтён: начисления отменены, уже выплаченные удержатся из '
+                                              'следующей выплаты. Подписку при необходимости отмени: /sub ID 0.'
+                                              if ok else 'Оплата не найдена или уже возвращена.')
 
 
 async def sub_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -4211,6 +4600,7 @@ def build_app(token):
     app.add_handler(CommandHandler('trainer', trainer_cabinet))
     app.add_handler(CommandHandler('coach', show_my_coach))
     app.add_handler(CommandHandler('sub', sub_command))
+    app.add_handler(CommandHandler('refund', refund_command))
     app.add_handler(CommandHandler('cancel', cancel))
     app.add_handler(CommandHandler('backup', backup_command))
     app.add_handler(CommandHandler('admin', admin_command))

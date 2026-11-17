@@ -2,6 +2,7 @@ import os
 import sys
 import tempfile
 import unittest
+from datetime import timedelta
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
@@ -221,3 +222,74 @@ class MarketplaceTests(unittest.TestCase):
         self.client.post('/api/coach/leave', headers=ch)
         self.assertIsNone(fb.get_user(6002)['trainer_id'])
         self.assertTrue(self.client.get('/api/trainers/6001', headers=ch2).json()['has_room'])
+
+
+class PayoutTests(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls.client = TestClient(api.create_app())
+
+    def h(self, uid, name):
+        fb.ensure_user_row(uid, name)
+        return {'Authorization': f'Bearer {api.create_session(uid)}'}
+
+    def shift(self, days):
+        with fb.connect() as c:
+            c.execute('UPDATE commissions SET available_at=? WHERE status=\'pending\'',
+                      ((fb.now() - timedelta(days=days)).isoformat(timespec='seconds'),))
+
+    def test_inn_checksum(self):
+        self.assertTrue(fb.valid_inn('500100732259', 'npd'))
+        self.assertFalse(fb.valid_inn('500100732258', 'npd'))
+        self.assertFalse(fb.valid_inn('7707083893', 'ip'))  # 10 цифр — юрлицо
+
+    def test_referral_coaching_hold_refund_registry(self):
+        th = self.h(7001, 'Тренер Иван')
+        fb.make_trainer(7001)
+        fb.ensure_user_row(7002, 'Реферал')
+
+        with fb.connect() as c:
+            c.execute('UPDATE users SET referred_by=7001 WHERE user_id=7002')
+            c.execute('UPDATE users SET trainer_id=7001 WHERE user_id=7003')
+        fb.ensure_user_row(7003, 'Подопечный')
+        with fb.connect() as c:
+            c.execute('UPDATE users SET trainer_id=7001 WHERE user_id=7003')
+        p1 = fb.record_payment(7002, 1000, 'self', 30)
+        fb.record_payment(7003, 3000, 'coach', 30)
+        fb.record_payment(7004, 500, 'self', 30)  # пришёл сам — начислений нет
+        b = fb.trainer_balance(7001)
+        self.assertEqual(b['pending'], 200 + 1800)  # PARTNER 20% + ведение 60%
+        self.assertEqual(b['available'], 0)
+        self.shift(1)
+        self.assertEqual(fb.trainer_balance(7001)['available'], 2000)
+        # Возврат до выплаты — начисление отменяется.
+        self.assertTrue(fb.refund_payment(p1))
+        self.assertFalse(fb.refund_payment(p1))
+        self.assertEqual(fb.trainer_balance(7001)['available'], 1800)
+        # Без реквизитов — в реестр не попадает.
+        created, missing = fb.create_payout_registry()
+        self.assertEqual((created, missing), ([], [(7001, 1800)]))
+        bad = {'legal_status': 'fl', 'full_name': 'Иванов Иван', 'inn': '500100732259', 'method': 'card', 'details': '2200123412341234'}
+        self.assertEqual(self.client.put('/api/trainer/requisites', json=bad, headers=th).status_code, 422)
+        ok = {**bad, 'legal_status': 'npd'}
+        r = self.client.put('/api/trainer/requisites', json=ok, headers=th).json()
+        self.assertTrue(r['ok'])
+        self.assertEqual(r['details_masked'][-4:], '1234')
+        created, missing = fb.create_payout_registry()
+        self.assertEqual(len(created), 1)
+        csv = fb.registry_csv(created).decode('utf-8-sig')
+        self.assertIn('Иванов Иван', csv)
+        self.assertIn('1800,00', csv)
+        self.assertEqual(fb.create_payout_registry(), ([], []))  # повторно не дублируется
+        fb.mark_payout_paid(created[0])
+        self.assertIsNone(fb.mark_payout_paid(created[0]))
+        e = self.client.get('/api/trainer/earnings', headers=th).json()
+        self.assertEqual(e['balance'], {'pending': 0, 'available': 0, 'paid': 1800})
+        self.assertEqual(e['payouts'][0]['status'], 'paid')
+        # Возврат после выплаты — удержание из следующей.
+        coach_pay = [x for x in e['commissions'] if x['type'] == 'coaching'][0]
+        with fb.connect() as c:
+            pid = c.execute('SELECT payment_id FROM commissions WHERE id=?', (coach_pay['id'],)).fetchone()[0]
+        fb.refund_payment(pid)
+        self.assertEqual(fb.trainer_balance(7001)['available'], -1800)
+        self.assertEqual(self.client.get('/api/trainer', headers=th).json()['balance']['available'], -1800)

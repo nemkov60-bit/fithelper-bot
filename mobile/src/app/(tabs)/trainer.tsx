@@ -6,7 +6,7 @@ import { Pressable, TextInput, View } from 'react-native';
 import { Stars } from '../../components/Stars';
 import { Button, Card, ErrorBox, Loading, ProgressBar, Screen, Stat, T } from '../../components/ui';
 import { api } from '../../lib/api';
-import { plural, REVIEWS } from '../../lib/format';
+import { plural, REVIEWS, rub } from '../../lib/format';
 import { colors, fonts } from '../../lib/theme';
 import type { TrainerHome } from '../../lib/trainer';
 
@@ -117,10 +117,21 @@ export default function Trainer() {
         </Card>
       ))}
 
+      <Pressable accessibilityRole="button" accessibilityLabel="Начисления и выплаты" onPress={() => router.push('/trainer/earnings')}>
+        <Card style={{ flexDirection: 'row', alignItems: 'center', gap: 12, borderColor: data.requisites_ok ? colors.border : colors.orange }}>
+          <View style={{ flex: 1, gap: 4 }}>
+            <T v="h3">Начисления</T>
+            <T v="small">К выплате <T v="small" style={{ color: colors.accent, fontFamily: fonts.bold }}>{rub(data.balance.available)}</T> · ожидает {rub(data.balance.pending)}</T>
+            {!data.requisites_ok ? <T v="small" style={{ color: colors.orange }}>Укажи реквизиты для выплат</T> : null}
+          </View>
+          <T v="small" style={{ color: colors.accent }}>Открыть</T>
+        </Card>
+      </Pressable>
+
       <View style={{ flexDirection: 'row', gap: 10 }}>
         <Stat value={String(data.subscribers)} label="подписчиков" />
         <Stat value={String(data.invited)} label="пришло по ссылкам" />
-        <Stat value={data.income !== null ? `${data.income} ₽` : String(data.clients.length)} label={data.income !== null ? 'доход в месяц' : 'подопечных'} />
+        <Stat value={String(data.clients.length)} label="подопечных" />
       </View>
 
       <View style={{ flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between' }}>

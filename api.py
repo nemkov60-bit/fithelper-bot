@@ -8,6 +8,7 @@
 import base64
 import hashlib
 import os
+import re
 import secrets
 from datetime import datetime, timedelta
 from pathlib import Path
@@ -296,6 +297,14 @@ class RequestIn(BaseModel):
 class ReviewIn(BaseModel):
     rating: int = Field(ge=1, le=5)
     text: str = Field(default='', max_length=1000)
+
+
+class RequisitesIn(BaseModel):
+    legal_status: str
+    full_name: str = Field(max_length=120)
+    inn: str = Field(max_length=20)
+    method: str
+    details: str = Field(max_length=200)
 
 
 class ProgramPatch(BaseModel):
@@ -827,6 +836,8 @@ def create_app(bot=None):
                      'progress': (subs - cur_from) / (nxt[1] - cur_from)} if nxt else None,
             'subscribers': subs, 'invited': invited,
             'income': round(subs * price * percent / 100) if price else None,
+            'balance': fb.trainer_balance(tid),
+            'requisites_ok': fb.requisites_ok(fb.get_requisites(tid)),
             'levels': [{'name': lv[0].split(' ', 1)[-1], 'from': lv[1], 'percent': lv[2], 'description': lv[3]}
                        for lv in fb.TRAINER_LEVELS],
             'links': [{'code': l['code'], 'label': l['label'], 'joined': l['joined'], 'subs': l['subs'],
@@ -838,6 +849,45 @@ def create_app(bot=None):
                           'goal': fb.GOALS.get(fb.get_user(r['client_id']).get('goal'), ''), 'date': r['created_at'][:10]}
                          for r in fb.pending_requests(tid=tid)],
         }
+
+    @app.get('/api/trainer/earnings')
+    def trainer_earnings(trainer=Depends(trainer_user)):
+        tid = trainer['user_id']
+        req = fb.get_requisites(tid)
+        return {
+            'balance': fb.trainer_balance(tid),
+            'rules': {'coach_share': fb.coach_share(), 'hold_days': fb.hold_days(), 'min_payout': fb.min_payout(),
+                      'level_percent': fb.trainer_level(fb.referral_stats(tid)[1])[1][2]},
+            'commissions': [{'id': r['id'], 'date': r['created_at'][:10], 'client': r['client_name'] or '',
+                             'type': r['type'], 'percent': r['percent'], 'base': r['base_amount'], 'amount': r['amount'],
+                             'status': r['status'], 'available_at': (r['available_at'] or '')[:10]}
+                            for r in fb.trainer_commissions(tid, 50)],
+            'payouts': [{'id': p['id'], 'amount': p['amount'], 'status': p['status'], 'created': p['created_at'][:10],
+                         'paid': (p['paid_at'] or '')[:10]} for p in fb.trainer_payouts(tid)],
+            'requisites': requisites_out(req),
+            'legal_statuses': fb.LEGAL_STATUSES, 'methods': fb.PAYOUT_METHODS,
+        }
+
+    def requisites_out(req):
+        if not req:
+            return None
+        return {'legal_status': req['legal_status'], 'full_name': req['full_name'], 'inn': req['inn'],
+                'method': req['method'], 'details_masked': fb.mask(req['details']), 'ok': fb.requisites_ok(req)}
+
+    @app.put('/api/trainer/requisites')
+    def put_requisites(body: RequisitesIn, trainer=Depends(trainer_user)):
+        inn = re.sub(r'\D', '', body.inn)
+        if body.legal_status not in fb.LEGAL_STATUSES:
+            raise HTTPException(422, 'Выплаты доступны только самозанятым и ИП')
+        if len(body.full_name.split()) < 2:
+            raise HTTPException(422, 'Укажи ФИО полностью')
+        if not fb.valid_inn(inn, body.legal_status):
+            raise HTTPException(422, 'ИНН не прошёл проверку — нужно 12 цифр')
+        if body.method not in fb.PAYOUT_METHODS or len(body.details.strip()) < 5:
+            raise HTTPException(422, 'Укажи способ и реквизиты для перевода')
+        fb.save_requisites(trainer['user_id'], body.legal_status, body.full_name.strip(), inn, body.method,
+                           body.details.strip())
+        return requisites_out(fb.get_requisites(trainer['user_id']))
 
     @app.get('/api/trainer/profile')
     def trainer_profile(trainer=Depends(trainer_user)):

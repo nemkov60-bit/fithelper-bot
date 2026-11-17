@@ -7,6 +7,8 @@ export type TrainerHome = {
   subscribers: number;
   invited: number;
   income: number | null;
+  balance: Balance;
+  requisites_ok: boolean;
   levels: { name: string; from: number; percent: number; description: string }[];
   links: { code: string; label: string; joined: number; subs: number; url: string }[];
   clients: { id: number; name: string; week: number; plan: number; goal: string; subscription: boolean; pending: number }[];
@@ -82,3 +84,19 @@ export type TrainerProfile = {
 };
 
 export type TrainerRequest = { id: number; name: string; message: string; goal: string; date: string };
+
+export type Balance = { pending: number; available: number; paid: number };
+export type Commission = {
+  id: number; date: string; client: string; type: 'coaching' | 'referral' | 'refund'; percent: number; base: number;
+  amount: number; status: 'pending' | 'available' | 'paid' | 'cancelled'; available_at: string;
+};
+export type Requisites = { legal_status: string; full_name: string; inn: string; method: string; details_masked: string; ok: boolean };
+export type Earnings = {
+  balance: Balance;
+  rules: { coach_share: number; hold_days: number; min_payout: number; level_percent: number };
+  commissions: Commission[];
+  payouts: { id: number; amount: number; status: 'created' | 'paid'; created: string; paid: string }[];
+  requisites: Requisites | null;
+  legal_statuses: Record<string, string>;
+  methods: Record<string, string>;
+};
