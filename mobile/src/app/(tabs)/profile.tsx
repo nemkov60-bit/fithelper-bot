@@ -5,6 +5,7 @@ import { Pressable, TextInput, View } from 'react-native';
 import { Button, Card, Screen, Segmented, T } from '../../components/ui';
 import { api } from '../../lib/api';
 import { useAuth } from '../../lib/auth';
+import { IOS_STORE } from '../../lib/platform';
 import { colors, fonts } from '../../lib/theme';
 
 export default function Profile() {
@@ -83,18 +84,23 @@ export default function Profile() {
 
       {!me.trainer && !me.is_trainer ? (
         <Card accent style={{ gap: 10 }}>
-          <T v="h3" style={{ color: colors.onAccent }}>Улучшить: занятия с тренером</T>
-          <T v="small" style={{ color: colors.onAccent }}>Тариф COACH — программа и контроль от персонального тренера. Выбери тренера по рейтингу.</T>
+          <T v="h3" style={{ color: colors.onAccent }}>{IOS_STORE ? 'Персональный тренер' : 'Улучшить: занятия с тренером'}</T>
+          <T v="small" style={{ color: colors.onAccent }}>
+            {IOS_STORE ? 'Программа и контроль от персонального тренера. Выбери тренера по рейтингу.'
+              : 'Тариф COACH — программа и контроль от персонального тренера. Выбери тренера по рейтингу.'}
+          </T>
           <Button title="Выбрать тренера" variant="dark" small onPress={() => router.push('/trainers')} />
         </Card>
       ) : null}
 
-      <Card style={{ gap: 8 }}>
-        <T v="h3">Подписка</T>
-        <T v="small">
-          {me.subscription_until ? `Активна до ${me.subscription_until.split('-').reverse().join('.')}` : 'Сейчас все функции доступны бесплатно. Тарифы появятся позже.'}
-        </T>
-      </Card>
+      {IOS_STORE && !me.subscription_until ? null : (
+        <Card style={{ gap: 8 }}>
+          <T v="h3">Подписка</T>
+          <T v="small">
+            {me.subscription_until ? `Активна до ${me.subscription_until.split('-').reverse().join('.')}` : 'Сейчас все функции доступны бесплатно. Тарифы появятся позже.'}
+          </T>
+        </Card>
+      )}
 
       <Button title="Выйти" variant="ghost" small onPress={async () => { await signOut(); router.replace('/login'); }} />
       <T v="small" style={{ textAlign: 'center', fontSize: 11 }}>Версия сервера: {me.version}</T>

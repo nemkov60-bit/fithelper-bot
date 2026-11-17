@@ -8,6 +8,7 @@ import { Badge, Button, Card, ErrorBox, IconButton, Loading, Screen, Stat, T } f
 import { api } from '../../lib/api';
 import { plural, REVIEWS, YEARS } from '../../lib/format';
 import { useAuth } from '../../lib/auth';
+import { IOS_STORE } from '../../lib/platform';
 import { colors, fonts } from '../../lib/theme';
 import type { TrainerDetail } from '../../lib/trainer';
 
@@ -130,8 +131,8 @@ export default function TrainerScreen() {
         <Card style={{ gap: 10, borderColor: colors.accent }}>
           <T v="h3">Заниматься с тренером</T>
           <T v="small">
-            Тренер составит программу, будет назначать тренировки, следить за техникой и прогрессом. Тариф COACH — оплата подключится позже,
-            сейчас ведение бесплатно.
+            Тренер составит программу, будет назначать тренировки, следить за техникой и прогрессом.
+            {IOS_STORE ? '' : ' Тариф COACH — оплата подключится позже, сейчас ведение бесплатно.'}
           </T>
           <TextInput value={message} onChangeText={setMessage} multiline maxLength={500} placeholder="Расскажи о цели, травмах, опыте (необязательно)"
             placeholderTextColor={colors.muted} accessibilityLabel="Сообщение тренеру" style={inputStyle} />
