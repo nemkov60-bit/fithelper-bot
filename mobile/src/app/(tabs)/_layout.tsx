@@ -12,11 +12,13 @@ const TABS: Record<string, { label: string; icon: IconName }> = {
   progress: { label: 'Прогресс', icon: 'chart' },
   coach: { label: 'Тренер', icon: 'coach' },
   profile: { label: 'Профиль', icon: 'user' },
+  trainer: { label: 'Кабинет', icon: 'group' },
 };
 
 // Нижнее меню-«таблетка» как в прототипе: активный раздел — салатовая кнопка с подписью.
 function PillTabBar({ state, navigateToTab }: BottomTabBarProps) {
   const insets = useSafeAreaInsets();
+  const { me } = useAuth();
   return (
     <View style={{ position: 'absolute', left: 16, right: 16, bottom: Math.max(insets.bottom, 12) + 8 }}>
       <View style={{
@@ -25,7 +27,7 @@ function PillTabBar({ state, navigateToTab }: BottomTabBarProps) {
       }}>
         {state.routes.map((route, index) => {
           const tab = TABS[route.name];
-          if (!tab) return null;
+          if (!tab || (route.name === 'trainer' && !me?.is_trainer)) return null;
           const focused = state.index === index;
           const onPress = () => {
             if (!focused) navigateToTab(route.key);
@@ -58,6 +60,7 @@ export default function TabsLayout() {
       <Tabs.Screen name="progress" />
       <Tabs.Screen name="coach" />
       <Tabs.Screen name="profile" />
+      <Tabs.Screen name="trainer" />
     </Tabs>
   );
 }

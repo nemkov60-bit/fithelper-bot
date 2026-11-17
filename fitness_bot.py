@@ -3322,7 +3322,8 @@ def cabinet_text(trainer):
 
 
 def cabinet_kb():
-    return kb([[('🔗 Мои ссылки', 'tr:links'), ('👥 Подопечные', 'tr:clients')],
+    return kb([[('🎯 Назначить тренировку', 'tr:asc')],
+               [('🔗 Мои ссылки', 'tr:links'), ('👥 Подопечные', 'tr:clients')],
                [('🏆 Уровни программы', 'tr:levels')]])
 
 
@@ -3491,6 +3492,17 @@ async def trainer_callback(data, update, context):
         context.user_data['await'] = 'link_label'
         await message.reply_text('Как назвать ссылку? Например: «Instagram», «Зал на Ленина», «Сторис». '
                                  'Название видишь только ты — по нему понятно, откуда пришли люди.')
+    elif data == 'tr:asc':
+        clients = trainer_clients(uid)
+        if not clients:
+            await message.reply_text('Подопечных пока нет. Отправь клиенту свою реферальную ссылку — '
+                                     'после его согласия он появится здесь.',
+                                     reply_markup=kb([[('🔗 Мои ссылки', 'tr:links')]]))
+            return
+        rows = [[(f'{display_name(c)} · {len(client_assignments(c["user_id"]))} назначено', f'tr:as:{c["user_id"]}')]
+                for c in clients]
+        rows.append([('⬅️ Кабинет', 'tr:home')])
+        await message.reply_text('🎯 Кому назначить тренировку?', reply_markup=kb(rows))
     elif data == 'tr:clients':
         clients = trainer_clients(uid)
         if not clients:

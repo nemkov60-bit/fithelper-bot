@@ -253,6 +253,32 @@ class GroupLogIn(BaseModel):
     minutes: int = Field(ge=5, le=300)
 
 
+class LinkIn(BaseModel):
+    label: str = Field(min_length=1, max_length=40)
+
+
+class ItemIn(BaseModel):
+    ex: str
+    sets: int = Field(ge=1, le=10)
+    lo: int = Field(ge=1, le=600)
+    hi: int = Field(ge=1, le=600)
+    w: float | None = Field(default=None, ge=0, le=1000)
+
+
+class AssignmentIn(BaseModel):
+    date: str
+    title: str = Field(min_length=1, max_length=80)
+    note: str = Field(default='', max_length=500)
+    items: list[ItemIn] = Field(min_length=1, max_length=20)
+
+
+class ProgramPatch(BaseModel):
+    goal: str | None = None
+    level: str | None = None
+    days: int | None = None
+    place: str | None = None
+
+
 # ======================================================================
 # Приложение
 # ======================================================================
@@ -625,6 +651,160 @@ def create_app(bot=None):
                             f'{fb.html.escape(body.text.strip())}',
                             fb.kb([[('↩️ Ответить', f'tr:msg:{user["user_id"]}'), ('👤 Профиль', f'tr:c:{user["user_id"]}')]]))
         return {'ok': True}
+
+    # ---------- кабинет тренера ----------
+    def trainer_user(user=Depends(current_user)):
+        if not fb.is_trainer(user):
+            raise HTTPException(403, 'Кабинет доступен только тренерам')
+        return user
+
+    def own_client(trainer, cid):
+        client = fb.get_user(cid)
+        if not client or client.get('trainer_id') != trainer['user_id']:
+            raise HTTPException(404, 'Это не твой подопечный')
+        return client
+
+    def bot_username():
+        return getattr(bot, 'username', None) or os.environ.get('FITNESS_BOT_USERNAME', 'FitHelperTop_bot')
+
+    @app.get('/api/trainer')
+    def trainer_home(trainer=Depends(trainer_user)):
+        tid = trainer['user_id']
+        invited, subs = fb.referral_stats(tid)
+        idx, (name, _, percent, desc) = fb.trainer_level(subs)
+        nxt = fb.TRAINER_LEVELS[idx + 1] if idx + 1 < len(fb.TRAINER_LEVELS) else None
+        cur_from = fb.TRAINER_LEVELS[idx][1]
+        clients = []
+        for c in fb.trainer_clients(tid):
+            week = len(fb.finished_workouts(c['user_id'], since=fb.now() - timedelta(days=7)))
+            clients.append({'id': c['user_id'], 'name': fb.display_name(c), 'week': week, 'plan': c.get('days') or 0,
+                            'goal': fb.GOALS.get(c.get('goal'), ''), 'subscription': fb.has_subscription(c),
+                            'pending': len(fb.client_assignments(c['user_id']))})
+        price = fb.sub_price()
+        return {
+            'level': {'name': name.split(' ', 1)[-1], 'percent': percent, 'description': desc},
+            'next': {'name': nxt[0].split(' ', 1)[-1], 'percent': nxt[2], 'left': nxt[1] - subs,
+                     'progress': (subs - cur_from) / (nxt[1] - cur_from)} if nxt else None,
+            'subscribers': subs, 'invited': invited,
+            'income': round(subs * price * percent / 100) if price else None,
+            'levels': [{'name': lv[0].split(' ', 1)[-1], 'from': lv[1], 'percent': lv[2], 'description': lv[3]}
+                       for lv in fb.TRAINER_LEVELS],
+            'links': [{'code': l['code'], 'label': l['label'], 'joined': l['joined'], 'subs': l['subs'],
+                       'url': f'https://t.me/{bot_username()}?start=ref_{l["code"]}'} for l in fb.trainer_links(tid)],
+            'clients': clients,
+        }
+
+    @app.post('/api/trainer/links')
+    def trainer_new_link(body: LinkIn, trainer=Depends(trainer_user)):
+        code = fb.create_ref_link(trainer['user_id'], body.label.strip())
+        return {'code': code, 'url': f'https://t.me/{bot_username()}?start=ref_{code}'}
+
+    @app.get('/api/trainer/catalog')
+    def trainer_catalog(trainer=Depends(trainer_user)):
+        return {'groups': fb.GROUPS, 'exercises': [
+            {'id': e.id, 'name': e.name, 'group': e.group, 'places': list(e.places), 'unit': e.unit,
+             'bodyweight': e.bodyweight, 'equipment': fb.EQUIPMENT[fb.equipment_of(e)][0]} for e in fb._EXERCISE_LIST]}
+
+    @app.get('/api/trainer/clients/{cid}')
+    def trainer_client(cid: int, trainer=Depends(trainer_user)):
+        c = own_client(trainer, cid)
+        t = fb.now()
+        week = fb.finished_workouts(cid, since=t - timedelta(days=7))
+        month = fb.finished_workouts(cid, since=t - timedelta(days=30))
+        prs = sorted(fb.personal_records(cid).items(), key=lambda kv: -kv[1][0])[:6]
+        complete = fb.profile_complete(c)
+        return {
+            'id': cid, 'name': fb.display_name(c), 'subscription_until': c.get('sub_until') if fb.has_subscription(c) else None,
+            'profile': {k: c.get(k) for k in ('gender', 'age', 'goal', 'level', 'days', 'place')} if complete else None,
+            'labels': {'gender': fb.GENDERS.get(c.get('gender'), ''), 'age': fb.AGES.get(c.get('age'), ''),
+                       'goal': fb.GOALS.get(c.get('goal'), ''), 'level': fb.LEVELS.get(c.get('level'), ''),
+                       'place': fb.PLACE_SHORT.get(c.get('place'), '')} if complete else None,
+            'week': len(week), 'month': len(month), 'groups_month': sum(1 for w in month if w.get('kind') == 'group'),
+            'cardio_week': fb.cardio_minutes_since(cid, t - timedelta(days=7)),
+            'last': {'title': month[0]['title'], 'date': month[0]['finished_at'][:10]} if month else None,
+            'records': [{'name': fb.EXERCISES[e].name, 'text': fb.fmt_set(w, r, fb.EXERCISES[e].unit), 'date': d}
+                        for e, (_, w, r, d) in prs if e in fb.EXERCISES],
+            'body_weight': [{'date': b['created_at'][:10], 'weight': b['weight']} for b in fb.body_weights(cid)][-30:],
+            'assignments': [assignment_json(a) for a in fb.client_assignments(cid)],
+            'messages': [{'mine': m['from_id'] == trainer['user_id'], 'text': m['text'], 'at': m['created_at']}
+                         for m in fb.recent_messages(trainer['user_id'], cid, 30)],
+            'program_days': [d.title for d in fb.user_program(c)] if complete else [],
+        }
+
+    @app.get('/api/trainer/clients/{cid}/history')
+    def trainer_client_history(cid: int, trainer=Depends(trainer_user)):
+        own_client(trainer, cid)
+        return history(limit=20, user=fb.get_user(cid))
+
+    @app.get('/api/trainer/clients/{cid}/program-day/{day}')
+    def trainer_program_day(cid: int, day: int, trainer=Depends(trainer_user)):
+        c = own_client(trainer, cid)
+        if not fb.profile_complete(c):
+            raise HTTPException(409, 'Подопечный ещё не заполнил анкету')
+        plan = fb.plan_day(c, day % c['days'])
+        return {'title': plan.title, 'items': fb.items_from_day(plan)}
+
+    @app.post('/api/trainer/clients/{cid}/messages')
+    async def trainer_message(cid: int, body: MessageIn, trainer=Depends(trainer_user)):
+        own_client(trainer, cid)
+        text = body.text.strip()
+        fb.save_message(trainer['user_id'], cid, text)
+        if bot:
+            await fb.notify(bot, cid, f'💬 <b>Сообщение от тренера {fb.html.escape(fb.display_name(trainer, ""))}</b>\n\n'
+                                      f'{fb.html.escape(text)}', fb.kb([[('↩️ Ответить', 'cl:msg')]]))
+        return {'ok': True}
+
+    @app.post('/api/trainer/clients/{cid}/assignments')
+    async def trainer_assign(cid: int, body: AssignmentIn, trainer=Depends(trainer_user)):
+        own_client(trainer, cid)
+        try:
+            day_iso = datetime.fromisoformat(body.date).date().isoformat()
+        except ValueError:
+            raise HTTPException(422, 'Неверная дата')
+        items = []
+        for it in body.items:
+            if it.ex not in fb.EXERCISES:
+                raise HTTPException(422, f'Неизвестное упражнение {it.ex}')
+            items.append({'ex': it.ex, 'sets': it.sets, 'lo': min(it.lo, it.hi), 'hi': max(it.lo, it.hi), 'w': it.w or None})
+        aid = fb.save_assignment(trainer['user_id'], cid, day_iso, body.title.strip(), body.note.strip(), items)
+        if bot:
+            text = (f'🎯 Тренер <b>{fb.html.escape(fb.display_name(trainer, ""))}</b> назначил тренировку на '
+                    f'<b>{fb.date_label(day_iso)}</b>: {fb.html.escape(body.title.strip())}\n\n'
+                    + '\n'.join(fb.item_line(i, it) for i, it in enumerate(items, 1))
+                    + (f'\n\n💬 {fb.html.escape(body.note.strip())}' if body.note.strip() else ''))
+            await fb.notify(bot, cid, text, fb.kb([[('▶️ Начать', f'cl:go:{aid}')]]))
+        return {'id': aid}
+
+    @app.delete('/api/trainer/assignments/{aid}')
+    async def trainer_cancel_assignment(aid: int, trainer=Depends(trainer_user)):
+        a = fb.get_assignment(aid)
+        if not a or a['trainer_id'] != trainer['user_id'] or a['status'] != 'pending':
+            raise HTTPException(404, 'Назначение не найдено')
+        fb.set_assignment_status(aid, 'cancelled')
+        if bot:
+            await fb.notify(bot, a['client_id'], f'Тренер отменил тренировку «{fb.html.escape(a["title"])}» '
+                                                 f'на {fb.date_label(a["date"])}.')
+        return {'ok': True}
+
+    @app.patch('/api/trainer/clients/{cid}/program')
+    async def trainer_program(cid: int, body: ProgramPatch, trainer=Depends(trainer_user)):
+        c = own_client(trainer, cid)
+        if not fb.profile_complete(c):
+            raise HTTPException(409, 'Подопечный ещё не заполнил анкету')
+        changes = []
+        for field, options, label in (('goal', fb.GOALS, 'цель'), ('level', fb.LEVELS, 'уровень'),
+                                      ('days', {d: f'{d} трен./нед.' for d in fb.DAY_OPTIONS}, 'частота'),
+                                      ('place', fb.PLACES, 'место')):
+            value = getattr(body, field)
+            if value is None or value == c.get(field):
+                continue
+            if value not in options:
+                raise HTTPException(422, f'Неверное значение: {label}')
+            fb.set_user_field(cid, field, value)
+            changes.append(f'{label} — {options[value]}')
+        if changes and bot:
+            await fb.notify(bot, cid, '✏️ Тренер изменил твою программу: ' + '; '.join(fb.html.escape(x) for x in changes))
+        return {'ok': True, 'changes': changes}
 
     # ---------- веб-версия приложения ----------
     @app.get('/api/health')

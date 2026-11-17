@@ -126,3 +126,44 @@ class ApiTests(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
+
+
+class TrainerApiTests(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls.client = TestClient(api.create_app())
+
+    def test_trainer_cabinet(self):
+        fb.ensure_user_row(5001, 'Тренер Иван')
+        h = {'Authorization': f'Bearer {api.create_session(5001)}'}
+        self.assertEqual(self.client.get('/api/trainer', headers=h).status_code, 403)
+        fb.make_trainer(5001)
+        home = self.client.get('/api/trainer', headers=h).json()
+        self.assertEqual(home['level']['name'], 'PARTNER')
+        self.assertEqual(home['level']['percent'], 20)
+        self.assertEqual(home['next']['left'], 10)
+        link = self.client.post('/api/trainer/links', json={'label': 'Instagram'}, headers=h).json()
+        self.assertIn('?start=ref_', link['url'])
+        # подопечный
+        fb.ensure_user_row(5002, 'Аня')
+        fb.save_user(5002, 'Аня', {'gender': 'f', 'age': '30', 'goal': 'fit', 'level': 'novice', 'days': 3, 'place': 'gym'})
+        fb.set_user_field(5002, 'trainer_id', 5001)
+        self.assertEqual(self.client.get('/api/trainer/clients/9999', headers=h).status_code, 404)
+        card = self.client.get('/api/trainer/clients/5002', headers=h).json()
+        self.assertEqual(card['labels']['place'], '🏢 в зале')
+        self.assertEqual(len(card['program_days']), 3)
+        day = self.client.get('/api/trainer/clients/5002/program-day/0', headers=h).json()
+        self.assertTrue(day['items'])
+        r = self.client.post('/api/trainer/clients/5002/assignments', headers=h, json={
+            'date': fb.today_iso(), 'title': day['title'], 'note': 'Без отказа', 'items': day['items']})
+        aid = r.json()['id']
+        self.assertEqual(self.client.get('/api/trainer', headers=h).json()['clients'][0]['pending'], 1)
+        self.client.post('/api/trainer/clients/5002/messages', json={'text': 'Привет!'}, headers=h)
+        self.assertEqual(self.client.get('/api/trainer/clients/5002', headers=h).json()['messages'][-1]['text'], 'Привет!')
+        p = self.client.patch('/api/trainer/clients/5002/program', json={'days': 4, 'place': 'home'}, headers=h).json()
+        self.assertEqual(len(p['changes']), 2)
+        self.assertEqual(fb.get_user(5002)['days'], 4)
+        self.client.delete(f'/api/trainer/assignments/{aid}', headers=h)
+        self.assertEqual(fb.get_assignment(aid)['status'], 'cancelled')
+        cat = self.client.get('/api/trainer/catalog', headers=h).json()
+        self.assertGreater(len(cat['exercises']), 80)
