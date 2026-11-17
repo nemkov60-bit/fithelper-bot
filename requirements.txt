@@ -2,3 +2,5 @@ python-telegram-bot==22.8
 python-dotenv==1.2.3
 fastapi==0.115.6
 uvicorn==0.32.1
+pillow>=10.4
+qrcode==8.2

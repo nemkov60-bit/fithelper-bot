@@ -299,6 +299,10 @@ class ReviewIn(BaseModel):
     text: str = Field(default='', max_length=1000)
 
 
+class GoalIn(BaseModel):
+    goal: int
+
+
 class RequisitesIn(BaseModel):
     legal_status: str
     full_name: str = Field(max_length=120)
@@ -507,8 +511,9 @@ def create_app(bot=None):
                     await fb.notify(bot, a['trainer_id'],
                                     f'✅ <b>{fb.html.escape(fb.display_name(user))}</b> выполнил(а) тренировку '
                                     f'«{fb.html.escape(a["title"])}» в приложении за {minutes} мин, подходов: {len(sets)}.')
+        await fb.social_after_workout(request.app.state.bot, uid)
         week = fb.finished_workouts(uid, since=fb.now() - timedelta(days=7))
-        return {'cancelled': False, 'minutes': minutes, 'sets': len(sets),
+        return {'cancelled': False, 'workout_id': wid, 'minutes': minutes, 'sets': len(sets),
                 'exercises': len({s['exercise_id'] for s in sets}), 'tonnage': round(tonnage),
                 'records': records, 'cardio': [fb.cardio_line(r) for r in cardio],
                 'week': {'done': len(week), 'plan': user['days']}}
@@ -654,11 +659,70 @@ def create_app(bot=None):
 
     # ---------- групповые ----------
     @app.post('/api/groups/log')
-    def group_log(body: GroupLogIn, user=Depends(profile_user)):
+    async def group_log(body: GroupLogIn, request: Request, user=Depends(profile_user)):
         if body.type not in fb.GROUP_TYPES:
             raise HTTPException(422)
         fb.log_past_group(user['user_id'], body.type, body.minutes)
+        await fb.social_after_workout(request.app.state.bot, user['user_id'])
         return {'ok': True}
+
+    # ---------- друзья ----------
+    def friends_json(user):
+        uid = user['user_id']
+        code = fb.user_invite_code(uid)
+        st = fb.friend_stats(uid)
+        pair = fb.active_pair(uid)
+        ps = fb.pair_status(pair, uid) if pair else None
+        last = fb.card_data(uid)['workout']
+        return {
+            'invite_url': fb.invite_url(bot_username(), code), 'pair_url': fb.invite_url(bot_username(), code, 'pair'),
+            'friend_days': fb.friend_bonus_days(), 'inviter_days': fb.inviter_bonus_days(),
+            'stats': {'invited': st['invited'], 'paid': st['paid'], 'days': st['days']},
+            'friends': [{'name': f['name'] or 'Друг', 'date': (f['created_at'] or '')[:10],
+                         'status': next((r['status'] for r in st['rewards'] if r['friend_id'] == f['user_id']), 'joined')}
+                        for f in st['friends']],
+            'pair': {'partner': ps['partner'], 'goal': ps['goal'], 'me': ps['me'], 'partner_done': ps['partner_done'],
+                     'streak': ps['streak'], 'closed': ps['closed']} if ps else None,
+            'goals': list(fb.PAIR_GOALS),
+            'card_url': f'/api/card/{code}.png?v={last["id"] if last else 0}',
+            'has_workout': bool(last),
+        }
+
+    @app.get('/api/friends')
+    def friends(user=Depends(current_user)):
+        return friends_json(user)
+
+    @app.post('/api/friends/pair/goal')
+    async def pair_goal(body: GoalIn, request: Request, user=Depends(current_user)):
+        if body.goal not in fb.PAIR_GOALS:
+            raise HTTPException(422, 'Цель — от 2 до 5 тренировок')
+        pair = fb.set_pair_goal(user['user_id'], body.goal)
+        if not pair:
+            raise HTTPException(404, 'Напарника пока нет')
+        bot = request.app.state.bot
+        if bot:
+            s = fb.pair_status(pair, user['user_id'])
+            await fb.notify(bot, s['partner_id'], f'🎯 {fb.html.escape(fb.display_name(user))} изменил(а) цель недели: '
+                                                  f'{fb.trainings(s["goal"])} каждому.')
+        return friends_json(user)
+
+    @app.delete('/api/friends/pair')
+    async def pair_leave(request: Request, user=Depends(current_user)):
+        pair = fb.end_pair(user['user_id'])
+        bot = request.app.state.bot
+        if pair and bot:
+            partner = pair['b_id'] if pair['a_id'] == user['user_id'] else pair['a_id']
+            await fb.notify(bot, partner, f'👋 {fb.html.escape(fb.display_name(user))} вышел(ла) из пары.')
+        return friends_json(user)
+
+    @app.get('/api/card/{code}.png')
+    def result_card(code: str, gift: int = 1):
+        # Код приглашения и так публичный (он в ссылке на карточке), поэтому картинку можно отдавать без входа.
+        owner = fb.user_by_invite_code(code)
+        if not owner:
+            raise HTTPException(404)
+        png = fb.render_card(fb.card_data(owner['user_id']), fb.invite_url(bot_username(), code), gift=bool(gift))
+        return Response(png, media_type='image/png', headers={'Cache-Control': 'private, max-age=60'})
 
     # ---------- тренер ----------
     @app.get('/api/coach')

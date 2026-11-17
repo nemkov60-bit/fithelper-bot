@@ -76,7 +76,7 @@ TZ_NAME = os.environ.get('FITNESS_TZ', 'Europe/Moscow')
 log = logging.getLogger('fitness_bot')
 
 # Версия кода: видна в «🛠 Админ» и в логах запуска — по ней видно, обновился ли бот на хостинге.
-BOT_VERSION = '2026-11-17 · начисления и выплаты'
+BOT_VERSION = '2026-11-17 · друзья и карточки'
 
 
 def now():
@@ -721,7 +721,7 @@ WORKOUT_COLUMNS = {'kind': "TEXT DEFAULT 'strength'", 'group_type': 'TEXT', 'gro
 
 USER_COLUMNS = {
     'is_trainer': 'INTEGER DEFAULT 0', 'trainer_status': 'TEXT', 'trainer_id': 'INTEGER', 'referred_by': 'INTEGER',
-    'ref_code': 'TEXT', 'sub_until': 'TEXT',
+    'ref_code': 'TEXT', 'sub_until': 'TEXT', 'invited_by': 'INTEGER', 'invite_code': 'TEXT',
     'gender': 'TEXT', 'age': 'TEXT', 'cycle_tracking': 'INTEGER DEFAULT 0', 'period_start': 'TEXT',
     'cycle_len': 'INTEGER DEFAULT 28', 'period_len': 'INTEGER DEFAULT 5',
 }
@@ -778,6 +778,12 @@ def init_db():
             user_id INTEGER PRIMARY KEY, legal_status TEXT, full_name TEXT, inn TEXT, method TEXT, details TEXT,
             updated_at TEXT);
         CREATE INDEX IF NOT EXISTS commissions_trainer ON commissions(trainer_id, status);
+        CREATE TABLE IF NOT EXISTS friend_rewards(
+            id INTEGER PRIMARY KEY AUTOINCREMENT, inviter_id INTEGER, friend_id INTEGER UNIQUE, payment_id INTEGER,
+            days INTEGER, status TEXT, created_at TEXT, available_at TEXT, granted_at TEXT);
+        CREATE TABLE IF NOT EXISTS pairs(
+            id INTEGER PRIMARY KEY AUTOINCREMENT, a_id INTEGER, b_id INTEGER, goal INTEGER DEFAULT 3,
+            created_at TEXT, ended_at TEXT);
         CREATE TABLE IF NOT EXISTS login_codes(
             code TEXT PRIMARY KEY, user_id INTEGER, created_at TEXT);
         CREATE TABLE IF NOT EXISTS api_sessions(
@@ -813,6 +819,8 @@ def init_db():
                 c.execute(f'ALTER TABLE workouts ADD COLUMN {name} {decl}')
         c.execute('CREATE INDEX IF NOT EXISTS users_trainer ON users(trainer_id)')
         c.execute('CREATE INDEX IF NOT EXISTS users_referred ON users(referred_by)')
+        c.execute('CREATE INDEX IF NOT EXISTS users_invited ON users(invited_by)')
+        c.execute('CREATE UNIQUE INDEX IF NOT EXISTS users_invite_code ON users(invite_code)')
 
 
 def get_user(uid):
@@ -1062,10 +1070,11 @@ BTN_SETTINGS = '⚙️ Настройки'
 BTN_ADMIN = '🛠 Админ'
 BTN_CABINET = '🎓 Кабинет тренера'
 BTN_MY_COACH = '🎓 Мой тренер'
+BTN_FRIENDS = '🤝 Друзья'
 
 
 def menu_for(user):
-    last = [BTN_CYCLE, BTN_SETTINGS] if user and user.get('gender') == 'f' else [BTN_SETTINGS]
+    last = [BTN_FRIENDS, BTN_CYCLE, BTN_SETTINGS] if user and user.get('gender') == 'f' else [BTN_FRIENDS, BTN_SETTINGS]
     rows = [[BTN_TODAY], [BTN_PROGRAM, BTN_PROGRESS], [BTN_WEIGHT, BTN_GOALS], last]
     extra = []
     if user and user.get('trainer_id'):
@@ -1677,6 +1686,7 @@ async def finish_group_workout(message, wk, user, cardio):
     lines += [cardio_line(r) for r in cardio]
     await message.reply_text('\n'.join(lines + ['', week_progress_line(user)]), parse_mode=ParseMode.HTML,
                              reply_markup=menu_for(user))
+    await after_workout_social(message, message.get_bot(), user['user_id'], wk['wid'])
 
 
 def week_progress_line(user):
@@ -1690,6 +1700,13 @@ async def save_past_group(message, uid, group_type, minutes):
     await message.reply_text(
         f'✅ Отметил: <b>{html.escape(GROUP_TYPES[group_type][0])}</b> — {minutes} мин.\n\n{week_progress_line(user)}',
         parse_mode=ParseMode.HTML, reply_markup=menu_for(user))
+    await social_after_workout(message.get_bot(), uid)
+
+
+async def after_workout_social(message, bot, uid, wid):
+    await message.reply_text('📸 Поделись результатом — друг по твоей ссылке получит подарок.',
+                             reply_markup=kb([[('📸 Карточка результата', f'fr:card:{wid}')]]))
+    await social_after_workout(bot, uid)
 
 
 async def group_callback(data, update, context):
@@ -1949,6 +1966,10 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
             return
     elif payload.startswith('ref_'):
         await handle_ref_start(update, context, payload[4:])
+    elif payload.startswith('u_'):
+        await handle_friend_start(update, context, payload[2:])
+    elif payload.startswith('pair_'):
+        await handle_friend_start(update, context, payload[5:], pair=True)
     user = get_user(uid)
     if profile_complete(user):
         await update.effective_message.reply_text(
@@ -2387,6 +2408,7 @@ async def finish_workout(message, context, uid):
         lines += ['', f'На этой неделе: {len(week)} из {user["days"]} тренировок {progress_bar(len(week) / user["days"])}',
                   f'Следующая — день {(wk["day"] + 1) % user["days"] + 1}. Не забудь про сон и белок 🍗']
     await message.reply_text('\n'.join(lines), parse_mode=ParseMode.HTML, reply_markup=menu_for(user))
+    await after_workout_social(message, context.bot, uid, wk['wid'])
 
 
 async def log_set(update: Update, context: ContextTypes.DEFAULT_TYPE, weight, reps):
@@ -2560,6 +2582,8 @@ async def callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await group_callback(data, update, context)
     elif data.startswith('tr:'):
         await trainer_callback(data, update, context)
+    elif data.startswith('fr:'):
+        await friends_callback(data, update, context)
     elif data.startswith('cl:'):
         await client_callback(data, update, context)
     elif data.startswith('wu:'):
@@ -2657,7 +2681,8 @@ async def text_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     uid = update.effective_user.id
     routes = {BTN_TODAY: show_today, BTN_PROGRAM: show_program, BTN_PROGRESS: show_progress,
               BTN_WEIGHT: show_weight, BTN_GOALS: show_goals, BTN_SETTINGS: settings, BTN_CYCLE: show_cycle,
-              BTN_ADMIN: admin_panel, BTN_CABINET: trainer_cabinet, BTN_MY_COACH: show_my_coach}
+              BTN_ADMIN: admin_panel, BTN_CABINET: trainer_cabinet, BTN_MY_COACH: show_my_coach,
+              BTN_FRIENDS: show_friends}
     if text in routes:
         if text != BTN_WEIGHT:
             context.user_data.pop('await', None)
@@ -3613,6 +3638,7 @@ def record_payment(uid, amount, kind='self', days=None, source='manual', note=''
                          status, created_at, available_at) VALUES(?,?,?,?,?,?,?, 'pending', ?, ?)''',
                       (pid, tid, uid, ctype, amount, pct, round(amount * pct / 100, 2),
                        stamp.isoformat(timespec='seconds'), available_at))
+    friend_reward_on_payment(uid, pid)
     return pid
 
 
@@ -3624,6 +3650,7 @@ def refund_payment(pid):
         if not pay or pay['refunded_at']:
             return False
         c.execute('UPDATE payments SET refunded_at=? WHERE id=?', (stamp, pid))
+        c.execute("UPDATE friend_rewards SET status='cancelled' WHERE payment_id=? AND status='pending'", (pid,))
         for com in c.execute('SELECT * FROM commissions WHERE payment_id=? AND amount>0', (pid,)).fetchall():
             if com['status'] in ('pending', 'available'):
                 c.execute("UPDATE commissions SET status='cancelled' WHERE id=?", (com['id'],))
@@ -3782,6 +3809,478 @@ def commissions_text(trainer):
             lines.append(f'• {r["created_at"][:10]} · {html.escape(r["client_name"] or "")} · {kinds.get(r["type"], r["type"])} '
                          f'{fmt_w(r["percent"])}% · <b>{money(r["amount"])}</b> · {COMMISSION_STATUSES.get(r["status"], r["status"])}')
     return '\n'.join(lines)
+
+
+# ---------- Друзья: приглашения, «Тренируйся с другом», карточка результата ----------
+# • У каждого пользователя личная ссылка t.me/<бот>?start=u_<код>.
+# • Новичок по ссылке друга сразу получает FRIEND_BONUS_DAYS дней подписки.
+# • Пригласивший получает INVITER_BONUS_DAYS дней после первой оплаты друга и удержания (как у тренеров),
+#   не больше INVITER_BONUS_CAP_DAYS бонусных дней за 365 дней.
+# • Засчитывается первая ссылка: пришёл по ссылке тренера — ссылка друга уже не действует, и наоборот.
+# • Пара «Тренируйся с другом»: общая цель тренировок на неделю, прогресс друг друга и серия закрытых недель.
+
+PAIR_GOALS = (2, 3, 4, 5)
+
+
+def friend_bonus_days():
+    return int(_env_float('FRIEND_BONUS_DAYS', 7))
+
+
+def inviter_bonus_days():
+    return int(_env_float('INVITER_BONUS_DAYS', 14))
+
+
+def inviter_bonus_cap():
+    return int(_env_float('INVITER_BONUS_CAP_DAYS', 365))
+
+
+def user_invite_code(uid):
+    user = get_user(uid)
+    if user and user.get('invite_code'):
+        return user['invite_code']
+    alphabet = 'abcdefghijkmnpqrstuvwxyz23456789'
+    while True:
+        code = ''.join(secrets.choice(alphabet) for _ in range(7))
+        with connect() as c:
+            if not c.execute('SELECT 1 FROM users WHERE invite_code=?', (code,)).fetchone():
+                c.execute('UPDATE users SET invite_code=? WHERE user_id=?', (code, uid))
+                return code
+
+
+def user_by_invite_code(code):
+    if not code or not re.fullmatch(r'[a-z0-9]{4,16}', code):
+        return None
+    with connect() as c:
+        row = c.execute('SELECT * FROM users WHERE invite_code=?', (code,)).fetchone()
+    return dict(row) if row else None
+
+
+def invite_url(bot_username, code, kind='u'):
+    return f'https://t.me/{bot_username}?start={kind}_{code}'
+
+
+def is_new_user(user):
+    """Новичок: только что пришёл, не тренировался и ни по чьей ссылке ещё не приходил."""
+    if not user or user.get('referred_by') or user.get('invited_by') or user.get('is_trainer'):
+        return False
+    if finished_workouts(user['user_id'], limit=1):
+        return False
+    try:
+        created = datetime.fromisoformat(user.get('created_at') or '')
+    except ValueError:
+        return False
+    return now() - created <= timedelta(days=2)
+
+
+def apply_friend_invite(uid, inviter_id):
+    """Привязывает новичка к пригласившему другу и дарит дни. Возвращает 'ok', 'self' или 'not_new'."""
+    if uid == inviter_id:
+        return 'self'
+    if not is_new_user(get_user(uid)):
+        return 'not_new'
+    with connect() as c:
+        c.execute('UPDATE users SET invited_by=? WHERE user_id=?', (inviter_id, uid))
+    add_subscription(uid, friend_bonus_days())
+    return 'ok'
+
+
+def friend_reward_on_payment(uid, payment_id):
+    """Первая оплата приглашённого: награда другу встаёт в очередь (удержание как у начислений тренерам)."""
+    user = get_user(uid)
+    if not user or not user.get('invited_by'):
+        return
+    stamp = now()
+    with connect() as c:
+        c.execute('''INSERT OR IGNORE INTO friend_rewards(inviter_id, friend_id, payment_id, days, status, created_at, available_at)
+                     VALUES(?,?,?,?, 'pending', ?, ?)''',
+                  (user['invited_by'], uid, payment_id, inviter_bonus_days(), stamp.isoformat(timespec='seconds'),
+                   (stamp + timedelta(days=hold_days())).isoformat(timespec='seconds')))
+
+
+def cancel_friend_reward(payment_id):
+    with connect() as c:
+        c.execute("UPDATE friend_rewards SET status='cancelled' WHERE payment_id=? AND status='pending'", (payment_id,))
+
+
+def friend_days_granted(inviter_id, since):
+    with connect() as c:
+        return c.execute("SELECT COALESCE(SUM(days),0) FROM friend_rewards WHERE inviter_id=? AND status='granted' "
+                         'AND granted_at>=?', (inviter_id, since.isoformat(timespec='seconds'))).fetchone()[0]
+
+
+def process_friend_rewards():
+    """Начисляет созревшие награды. Возвращает [(пригласивший, друг, дней)] для уведомлений."""
+    stamp = now()
+    with connect() as c:
+        due = [dict(r) for r in c.execute("SELECT * FROM friend_rewards WHERE status='pending' AND available_at<=? "
+                                          'ORDER BY id', (stamp.isoformat(timespec='seconds'),))]
+    done = []
+    for r in due:
+        left = inviter_bonus_cap() - friend_days_granted(r['inviter_id'], stamp - timedelta(days=365))
+        days = max(0, min(r['days'], left))
+        with connect() as c:
+            c.execute('UPDATE friend_rewards SET status=?, days=?, granted_at=? WHERE id=?',
+                      ('granted' if days else 'capped', days, stamp.isoformat(timespec='seconds'), r['id']))
+        if days:
+            add_subscription(r['inviter_id'], days)
+            done.append((r['inviter_id'], r['friend_id'], days))
+    return done
+
+
+async def deliver_friend_rewards(bot):
+    for inviter, friend, days in process_friend_rewards():
+        await notify(bot, inviter, f'🎁 Твой друг <b>{html.escape(display_name(get_user(friend)))}</b> оформил подписку — '
+                                   f'тебе <b>+{days} дней</b>! Подписка активна до '
+                                   f'{date.fromisoformat(get_user(inviter)["sub_until"]):%d.%m.%Y}.')
+
+
+def friend_stats(uid):
+    with connect() as c:
+        invited = c.execute('SELECT COUNT(*) FROM users WHERE invited_by=?', (uid,)).fetchone()[0]
+        rows = [dict(r) for r in c.execute(
+            '''SELECT f.*, u.name AS friend_name FROM friend_rewards f LEFT JOIN users u ON u.user_id=f.friend_id
+               WHERE f.inviter_id=? ORDER BY f.id DESC''', (uid,))]
+        friends = [dict(r) for r in c.execute('SELECT user_id, name, created_at FROM users WHERE invited_by=? '
+                                              'ORDER BY created_at DESC LIMIT 50', (uid,))]
+    return {'invited': invited, 'paid': sum(1 for r in rows if r['status'] in ('pending', 'granted', 'capped')),
+            'days': sum(r['days'] for r in rows if r['status'] == 'granted'), 'rewards': rows, 'friends': friends}
+
+
+# --- Пара «Тренируйся с другом» ---
+
+def active_pair(uid):
+    with connect() as c:
+        row = c.execute('SELECT * FROM pairs WHERE ended_at IS NULL AND (a_id=? OR b_id=?) ORDER BY id DESC LIMIT 1',
+                        (uid, uid)).fetchone()
+    return dict(row) if row else None
+
+
+def create_pair(a, b, goal=3):
+    """Возвращает (pair или None, причина)."""
+    if a == b:
+        return None, 'self'
+    if active_pair(a):
+        return None, 'inviter_busy'
+    if active_pair(b):
+        return None, 'busy'
+    with connect() as c:
+        pid = c.execute('INSERT INTO pairs(a_id, b_id, goal, created_at) VALUES(?,?,?,?)',
+                        (a, b, goal, now().isoformat(timespec='seconds'))).lastrowid
+    return active_pair(a), 'ok'
+
+
+def end_pair(uid):
+    pair = active_pair(uid)
+    if pair:
+        with connect() as c:
+            c.execute('UPDATE pairs SET ended_at=? WHERE id=?', (now().isoformat(timespec='seconds'), pair['id']))
+    return pair
+
+
+def set_pair_goal(uid, goal):
+    pair = active_pair(uid)
+    if pair and goal in PAIR_GOALS:
+        with connect() as c:
+            c.execute('UPDATE pairs SET goal=? WHERE id=?', (goal, pair['id']))
+    return active_pair(uid)
+
+
+def week_monday(d=None):
+    d = d or now().date()
+    return d - timedelta(days=d.weekday())
+
+
+def workouts_in_week(uid, monday):
+    start = datetime.combine(monday, datetime.min.time())
+    with connect() as c:
+        return c.execute('SELECT COUNT(*) FROM workouts WHERE user_id=? AND finished_at IS NOT NULL '
+                         'AND finished_at>=? AND finished_at<?',
+                         (uid, start.isoformat(timespec='seconds'),
+                          (start + timedelta(days=7)).isoformat(timespec='seconds'))).fetchone()[0]
+
+
+def pair_status(pair, uid):
+    partner_id = pair['b_id'] if pair['a_id'] == uid else pair['a_id']
+    goal = pair['goal']
+    monday = week_monday()
+    me, partner = workouts_in_week(uid, monday), workouts_in_week(partner_id, monday)
+    started = week_monday(datetime.fromisoformat(pair['created_at']).date())
+    streak = 1 if me >= goal and partner >= goal else 0
+    week = monday - timedelta(days=7)
+    while week >= started and workouts_in_week(uid, week) >= goal and workouts_in_week(partner_id, week) >= goal:
+        streak += 1
+        week -= timedelta(days=7)
+    return {'partner_id': partner_id, 'partner': display_name(get_user(partner_id), 'Друг'), 'goal': goal,
+            'me': me, 'partner_done': partner, 'streak': streak, 'closed': me >= goal and partner >= goal}
+
+
+def pair_text(uid):
+    pair = active_pair(uid)
+    if not pair:
+        return ''
+    s = pair_status(pair, uid)
+    return (f'🤝 <b>Тренируйся с другом:</b> {html.escape(s["partner"])}\n'
+            f'Цель недели: {trainings(s["goal"])} каждому\n'
+            f'Ты: {s["me"]}/{s["goal"]} {progress_bar(min(1, s["me"] / s["goal"]))}\n'
+            f'{html.escape(s["partner"])}: {s["partner_done"]}/{s["goal"]} {progress_bar(min(1, s["partner_done"] / s["goal"]))}\n'
+            + (f'🔥 Серия: {s["streak"]} {plural_weeks(s["streak"])} подряд вместе' if s['streak'] else
+               'Закройте неделю вместе — начнётся серия 🔥'))
+
+
+def trainings(n):
+    return f'{n} ' + ('тренировки' if n % 10 in (2, 3, 4) and n % 100 not in (12, 13, 14) else
+                      'тренировка' if n % 10 == 1 and n % 100 != 11 else 'тренировок')
+
+
+def plural_weeks(n):
+    n = abs(n) % 100
+    if 11 <= n <= 14:
+        return 'недель'
+    return {1: 'неделя', 2: 'недели', 3: 'недели', 4: 'недели'}.get(n % 10, 'недель')
+
+
+async def social_after_workout(bot, uid):
+    """После тренировки: сообщить напарнику прогресс; если оба закрыли неделю — поздравить обоих."""
+    pair = active_pair(uid)
+    if not pair or not bot:
+        return
+    s = pair_status(pair, uid)
+    name = html.escape(display_name(get_user(uid), 'Друг'))
+    if s['me'] == s['goal'] and s['partner_done'] >= s['goal']:
+        text = (f'🔥 Неделя закрыта вместе! Серия: <b>{s["streak"]} {plural_weeks(s["streak"])}</b>. '
+                'Так держать 💪')
+        await notify(bot, uid, text)
+        await notify(bot, s['partner_id'], text)
+        return
+    if s['me'] > s['goal']:
+        return
+    left = s['goal'] - s['partner_done']
+    await notify(bot, s['partner_id'],
+                 f'🤝 <b>{name}</b> потренировался(лась): {s["me"]}/{s["goal"]} на этой неделе. '
+                 + (f'Тебе осталось {left} — не отставай 😉' if left > 0 else 'Ты свою цель уже выполнил(а) 💪'))
+
+
+# --- Карточка результата ---
+
+FONTS_DIR = Path(__file__).resolve().parent / 'assets' / 'fonts'
+
+
+def card_data(uid, wid=None):
+    """Данные карточки: последняя (или указанная) завершённая тренировка и итоги месяца."""
+    user = get_user(uid)
+    with connect() as c:
+        if wid:
+            w = c.execute('SELECT * FROM workouts WHERE id=? AND user_id=? AND finished_at IS NOT NULL', (wid, uid)).fetchone()
+        else:
+            w = c.execute('SELECT * FROM workouts WHERE user_id=? AND finished_at IS NOT NULL ORDER BY finished_at DESC LIMIT 1',
+                          (uid,)).fetchone()
+    data = {'name': display_name(user, 'Атлет'), 'month': len(finished_workouts(uid, since=now() - timedelta(days=30))),
+            'week': workouts_in_week(uid, week_monday()), 'plan': (user or {}).get('days') or 3, 'workout': None}
+    pair = active_pair(uid)
+    data['streak'] = pair_status(pair, uid)['streak'] if pair else 0
+    if not w:
+        return data
+    w = dict(w)
+    sets = workout_sets(w['id'])
+    records = []
+    for ex_id in dict.fromkeys(s['exercise_id'] for s in sets):
+        before = best_e1rm(uid, ex_id, w['id'])
+        best = max(e1rm(s['weight'], s['reps']) for s in sets if s['exercise_id'] == ex_id)
+        if before and best > before:
+            records.append(EXERCISES[ex_id].name if ex_id in EXERCISES else ex_id)
+    tonnage = sum(s['weight'] * s['reps'] for s in sets
+                  if s['exercise_id'] in EXERCISES and EXERCISES[s['exercise_id']].unit == 'reps')
+    minutes = max(1, int((datetime.fromisoformat(w['finished_at']) - datetime.fromisoformat(w['started_at'])).total_seconds() // 60))
+    if w.get('kind') == 'group':
+        minutes = w.get('group_minutes') or minutes
+    data['workout'] = {'id': w['id'], 'title': w.get('title') or 'Тренировка', 'date': w['finished_at'][:10],
+                       'minutes': minutes, 'sets': len(sets), 'exercises': len({s['exercise_id'] for s in sets}),
+                       'tonnage': round(tonnage), 'records': records[:3], 'group': w.get('kind') == 'group'}
+    return data
+
+
+def render_card(data, url, gift=True):
+    """PNG 1080×1350 (формат поста/сторис) в стиле приложения. Ссылка — текстом и QR-кодом."""
+    import io
+    import qrcode
+    from PIL import Image, ImageDraw, ImageFont
+
+    W, H = 1080, 1350
+    bg, surface, accent, text, soft, on_accent = '#0E0F0F', '#1A1C1B', '#C8F04A', '#F2F4F1', '#9AA19C', '#0E0F0F'
+    img = Image.new('RGB', (W, H), bg)
+    d = ImageDraw.Draw(img)
+
+    def font(weight, size):
+        return ImageFont.truetype(str(FONTS_DIR / f'Manrope_{weight}.ttf'), size)
+
+    def fit(s, weight, size, width):
+        while size > 20 and d.textlength(s, font=font(weight, size)) > width:
+            size -= 2
+        return font(weight, size)
+
+    pad = 72
+    d.ellipse((W - 420, -260, W + 200, 360), fill='#1F2A10')
+    d.text((pad, 70), 'FitHelper', font=font('800ExtraBold', 44), fill=accent)
+    w = data.get('workout')
+    when = f'{date.fromisoformat(w["date"]):%d.%m.%Y}' if w else f'{now():%d.%m.%Y}'
+    d.text((W - pad, 82), when, font=font('600SemiBold', 30), fill=soft, anchor='ra')
+
+    y = 190
+    d.text((pad, y), data['name'], font=fit(data['name'], '700Bold', 44, W - 2 * pad), fill=soft)
+    y += 70
+    title = (w['title'] if w else 'Тренируюсь с FitHelper')
+    headline = 'Тренировка завершена' if w else 'Мой прогресс'
+    d.text((pad, y), headline, font=font('800ExtraBold', 76), fill=text)
+    y += 100
+    d.text((pad, y), title, font=fit(title, '600SemiBold', 38, W - 2 * pad), fill=soft)
+    y += 90
+
+    tiles = []
+    if w:
+        if w['tonnage']:
+            tiles.append((f'{w["tonnage"]:,}'.replace(',', ' '), 'кг тоннаж'))
+        tiles.append((str(w['minutes']), 'минут'))
+        if w['sets']:
+            tiles.append((str(w['sets']), 'подходов'))
+    tiles.append((str(data['month']), 'тренировок за 30 дней'))
+    tiles = tiles[:4]
+    cols = 2
+    tw, th, gap = (W - 2 * pad - 24) // cols, 190, 24
+    for i, (value, label) in enumerate(tiles):
+        x0 = pad + (i % cols) * (tw + gap)
+        y0 = y + (i // cols) * (th + gap)
+        hero = i == 0
+        d.rounded_rectangle((x0, y0, x0 + tw, y0 + th), radius=36, fill=accent if hero else surface)
+        d.text((x0 + 32, y0 + 26), value, font=fit(value, '800ExtraBold', 72, tw - 64), fill=on_accent if hero else text)
+        d.text((x0 + 32, y0 + 128), label, font=font('700Bold', 28), fill=on_accent if hero else soft)
+    y += ((len(tiles) + 1) // cols) * (th + gap) + 10
+
+    extra = []
+    if w and w['records']:
+        extra.append('Рекорд: ' + ', '.join(w['records']))
+    extra.append(f'Неделя: {data["week"]} из {data["plan"]} тренировок')
+    if data.get('streak'):
+        extra.append(f'Серия с другом: {data["streak"]} {plural_weeks(data["streak"])} подряд')
+    for line in extra[:3]:
+        d.text((pad, y), line, font=fit(line, '700Bold', 34, W - 2 * pad), fill=text)
+        y += 54
+
+    # Низ: приглашение и QR.
+    box = (pad, H - 300, W - pad, H - 70)
+    d.rounded_rectangle(box, radius=40, fill=surface)
+    qr = qrcode.QRCode(border=1, box_size=10, error_correction=qrcode.constants.ERROR_CORRECT_M)
+    qr.add_data(url)
+    qr.make(fit=True)
+    q = qr.make_image(fill_color=bg, back_color=accent).convert('RGB').resize((190, 190), Image.NEAREST)
+    img.paste(q, (box[2] - 190 - 20, box[1] + 20))
+    tx = box[0] + 36
+    d.text((tx, box[1] + 34), 'Тренируйся со мной', font=font('800ExtraBold', 44), fill=text)
+    sub = 'Наведи камеру на QR-код' if not gift else f'+{friend_bonus_days()} дней подписки в подарок'
+    d.text((tx, box[1] + 100), sub, font=font('700Bold', 30), fill=accent)
+    short = url.replace('https://', '')
+    d.text((tx, box[1] + 150), short, font=fit(short, '600SemiBold', 26, box[2] - 230 - tx), fill=soft)
+    buf = io.BytesIO()
+    img.save(buf, 'PNG', optimize=True)
+    return buf.getvalue()
+
+
+def friends_text(uid, bot_username):
+    code = user_invite_code(uid)
+    st = friend_stats(uid)
+    lines = ['<b>🤝 Друзья</b>', '',
+             f'Пригласи друга — он сразу получит <b>+{friend_bonus_days()} дней</b> подписки, а ты — '
+             f'<b>+{inviter_bonus_days()} дней</b>, когда он оформит подписку.', '',
+             f'Твоя ссылка:\n<code>{invite_url(bot_username, code)}</code>', '',
+             f'👥 Пришло по ссылке: <b>{st["invited"]}</b> · оформили подписку: <b>{st["paid"]}</b> · '
+             f'получено дней: <b>{st["days"]}</b>']
+    pt = pair_text(uid)
+    lines += ['', pt if pt else '🤝 <b>Тренируйся с другом</b> — общая цель на неделю, видно прогресс друг друга, '
+                                'а закрытые вместе недели складываются в серию 🔥']
+    return '\n'.join(lines)
+
+
+def friends_kb(uid):
+    rows = [[('📸 Карточка результата', 'fr:card')]]
+    if active_pair(uid):
+        rows.append([(f'🎯 {g}', f'fr:g:{g}') for g in PAIR_GOALS])
+        rows.append([('🚪 Выйти из пары', 'fr:leave')])
+    else:
+        rows.append([('🤝 Тренироваться с другом', 'fr:pair')])
+    return kb(rows)
+
+
+async def handle_friend_start(update, context, code, pair=False):
+    """Пришёл по ссылке друга (u_) или по приглашению в пару (pair_)."""
+    uid = update.effective_user.id
+    message = update.effective_message
+    inviter = user_by_invite_code(code)
+    if not inviter:
+        return
+    ensure_user_row(uid, update.effective_user.first_name or '')
+    if inviter['user_id'] == uid:
+        await message.reply_text('Это твоя ссылка 🙂 Отправь её другу.')
+        return
+    name = html.escape(display_name(inviter, 'Друг'))
+    if apply_friend_invite(uid, inviter['user_id']) == 'ok':
+        await message.reply_text(f'🎁 Тебя пригласил(а) <b>{name}</b> — дарим <b>+{friend_bonus_days()} дней</b> подписки!',
+                                 parse_mode=ParseMode.HTML)
+        await notify(context.bot, inviter['user_id'],
+                     f'🎉 По твоей ссылке пришёл(ла) <b>{html.escape(display_name(get_user(uid)))}</b>. '
+                     f'Когда друг оформит подписку, ты получишь +{inviter_bonus_days()} дней.')
+    if pair:
+        pr, why = create_pair(inviter['user_id'], uid)
+        if pr:
+            await message.reply_text(f'🤝 Теперь вы с <b>{name}</b> тренируетесь вместе: цель — {trainings(pr["goal"])} '
+                                     'в неделю каждому. Я буду сообщать о прогрессе друг друга. '
+                                     'Настроить — «🤝 Друзья».', parse_mode=ParseMode.HTML)
+            await notify(context.bot, inviter['user_id'],
+                         f'🤝 <b>{html.escape(display_name(get_user(uid)))}</b> принял(а) приглашение — '
+                         'теперь вы тренируетесь вместе! Цель недели можно поменять в «🤝 Друзья».')
+        elif why == 'busy':
+            await message.reply_text('У тебя уже есть напарник. Чтобы сменить, выйди из пары в «🤝 Друзья».')
+        elif why == 'inviter_busy':
+            await message.reply_text(f'У {name} уже есть напарник по тренировкам.', parse_mode=ParseMode.HTML)
+
+
+async def friends_callback(data, update, context):
+    uid = update.effective_user.id
+    message = update.callback_query.message
+    parts = data.split(':')
+    if data == 'fr:home':
+        await message.reply_text(friends_text(uid, context.bot.username), parse_mode=ParseMode.HTML,
+                                 reply_markup=friends_kb(uid), disable_web_page_preview=True)
+    elif parts[1] == 'card':
+        wid = int(parts[2]) if len(parts) == 3 and parts[2].isdigit() else None
+        url = invite_url(context.bot.username, user_invite_code(uid))
+        png = render_card(card_data(uid, wid), url)
+        await message.reply_photo(png, caption=f'Перешли в сторис или другу 📲\nСсылка с подарком: {url}')
+    elif data == 'fr:pair':
+        url = invite_url(context.bot.username, user_invite_code(uid), 'pair')
+        await message.reply_text('🤝 <b>Тренируйся с другом</b>\n\nОтправь другу эту ссылку. Когда он её откроет, '
+                                 'вы станете напарниками: общая цель тренировок на неделю, я сообщаю о прогрессе '
+                                 f'друг друга, а закрытые вместе недели складываются в серию 🔥\n\n<code>{url}</code>',
+                                 parse_mode=ParseMode.HTML, disable_web_page_preview=True)
+    elif parts[1] == 'g' and len(parts) == 3 and parts[2].isdigit():
+        pair = set_pair_goal(uid, int(parts[2]))
+        if pair:
+            s = pair_status(pair, uid)
+            await notify(context.bot, s['partner_id'], f'🎯 {html.escape(display_name(get_user(uid)))} изменил(а) '
+                                                       f'цель недели: {trainings(s["goal"])} каждому.')
+            await message.reply_text(pair_text(uid), parse_mode=ParseMode.HTML, reply_markup=friends_kb(uid))
+    elif data == 'fr:leave':
+        pair = end_pair(uid)
+        if pair:
+            partner = pair['b_id'] if pair['a_id'] == uid else pair['a_id']
+            await notify(context.bot, partner, f'👋 {html.escape(display_name(get_user(uid)))} вышел(ла) из пары.')
+        await message.reply_text('Ты вышел(ла) из пары.', reply_markup=friends_kb(uid))
+
+
+async def show_friends(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    uid = update.effective_user.id
+    ensure_user_row(uid, update.effective_user.first_name or '')
+    await deliver_friend_rewards(context.bot)
+    await update.effective_message.reply_text(friends_text(uid, context.bot.username), parse_mode=ParseMode.HTML,
+                                              reply_markup=friends_kb(uid), disable_web_page_preview=True)
 
 
 # ---------- Кабинет тренера ----------
@@ -4292,7 +4791,7 @@ async def handle_ref_start(update, context, code):
         return
     ensure_user_row(uid, update.effective_user.first_name or '')
     user = get_user(uid)
-    if not user.get('referred_by'):
+    if not user.get('referred_by') and not user.get('invited_by'):
         with connect() as c:
             c.execute('UPDATE users SET referred_by=?, ref_code=? WHERE user_id=?', (tid, code, uid))
         await notify(context.bot, tid, f'🎉 По ссылке «{html.escape(link["label"] or "")}» пришёл новый пользователь: '
@@ -4601,6 +5100,7 @@ def build_app(token):
     app.add_handler(CommandHandler('coach', show_my_coach))
     app.add_handler(CommandHandler('sub', sub_command))
     app.add_handler(CommandHandler('refund', refund_command))
+    app.add_handler(CommandHandler('friends', show_friends))
     app.add_handler(CommandHandler('cancel', cancel))
     app.add_handler(CommandHandler('backup', backup_command))
     app.add_handler(CommandHandler('admin', admin_command))
@@ -4644,11 +5144,23 @@ async def run_bot_and_api(token):
         await application.start()
         await application.updater.start_polling(allowed_updates=Update.ALL_TYPES)
         print(f'Фитнес-бот запущен. Версия: {BOT_VERSION}. Данные: {DATA_DIR}. API приложения: порт {port}', flush=True)
+        rewards = asyncio.create_task(rewards_loop(application.bot))
         try:
             await server.serve()
         finally:
+            rewards.cancel()
             await application.updater.stop()
             await application.stop()
+
+
+async def rewards_loop(bot):
+    """Раз в 30 минут начисляет созревшие награды за друзей."""
+    while True:
+        try:
+            await deliver_friend_rewards(bot)
+        except Exception:  # noqa: BLE001 — фоновая задача не должна падать
+            log.exception('Ошибка начисления наград за друзей')
+        await asyncio.sleep(1800)
 
 
 def main():

@@ -293,3 +293,87 @@ class PayoutTests(unittest.TestCase):
         fb.refund_payment(pid)
         self.assertEqual(fb.trainer_balance(7001)['available'], -1800)
         self.assertEqual(self.client.get('/api/trainer', headers=th).json()['balance']['available'], -1800)
+
+
+class FriendsTests(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls.client = TestClient(api.create_app())
+
+    def h(self, uid, name):
+        fb.ensure_user_row(uid, name)
+        return {'Authorization': f'Bearer {api.create_session(uid)}'}
+
+    def test_invite_bonus_hold_cap(self):
+        ah = self.h(8001, 'Аня')
+        code = fb.user_invite_code(8001)
+        self.assertEqual(fb.user_invite_code(8001), code)
+        self.assertEqual(fb.user_by_invite_code(code)['user_id'], 8001)
+        fb.ensure_user_row(8002, 'Боря')
+        self.assertEqual(fb.apply_friend_invite(8001, 8001), 'self')
+        self.assertEqual(fb.apply_friend_invite(8002, 8001), 'ok')
+        self.assertEqual(fb.get_user(8002)['sub_until'], (fb.now().date() + timedelta(days=7)).isoformat())
+        self.assertEqual(fb.apply_friend_invite(8002, 8001), 'not_new')  # второй раз не срабатывает
+        # Ссылка тренера после ссылки друга не перебивает.
+        fb.ensure_user_row(8009, 'Старичок')
+        with fb.connect() as c:
+            c.execute("UPDATE users SET created_at='2020-01-01T00:00:00' WHERE user_id=8009")
+        self.assertEqual(fb.apply_friend_invite(8009, 8001), 'not_new')
+        # Оплата друга → награда после удержания, повторная оплата награду не дублирует.
+        p1 = fb.record_payment(8002, 990, 'self', 30)
+        fb.record_payment(8002, 990, 'self', 30)
+        self.assertEqual(fb.process_friend_rewards(), [])
+        with fb.connect() as c:
+            c.execute("UPDATE friend_rewards SET available_at='2020-01-01' WHERE friend_id=8002")
+        self.assertEqual(fb.process_friend_rewards(), [(8001, 8002, 14)])
+        self.assertEqual(fb.get_user(8001)['sub_until'], (fb.now().date() + timedelta(days=14)).isoformat())
+        self.assertFalse(fb.refund_payment(999999))
+        self.assertTrue(fb.refund_payment(p1))  # возврат после начисления награды уже не отменяет
+        r = self.client.get('/api/friends', headers=ah).json()
+        self.assertEqual(r['stats'], {'invited': 1, 'paid': 1, 'days': 14})
+        self.assertIn('?start=u_' + code, r['invite_url'])
+        self.assertEqual(r['friends'][0]['status'], 'granted')
+        # Лимит бонусных дней.
+        os.environ['INVITER_BONUS_CAP_DAYS'] = '20'
+        try:
+            for fid in (8003, 8004):
+                fb.ensure_user_row(fid, f'Друг {fid}')
+                fb.apply_friend_invite(fid, 8001)
+                fb.record_payment(fid, 990, 'self', 30)
+            with fb.connect() as c:
+                c.execute("UPDATE friend_rewards SET available_at='2020-01-01'")
+            self.assertEqual(fb.process_friend_rewards(), [(8001, 8003, 6)])
+        finally:
+            del os.environ['INVITER_BONUS_CAP_DAYS']
+
+    def test_refund_cancels_pending_reward(self):
+        fb.ensure_user_row(8101, 'А')
+        fb.ensure_user_row(8102, 'Б')
+        fb.apply_friend_invite(8102, 8101)
+        pid = fb.record_payment(8102, 500, 'self', 30)
+        fb.refund_payment(pid)
+        with fb.connect() as c:
+            c.execute("UPDATE friend_rewards SET available_at='2020-01-01'")
+        self.assertEqual(fb.process_friend_rewards(), [])
+
+    def test_pair_and_card(self):
+        ah = self.h(8201, 'Катя')
+        fb.ensure_user_row(8202, 'Дима')
+        self.assertEqual(self.client.get('/api/friends', headers=ah).json()['pair'], None)
+        pair, why = fb.create_pair(8201, 8202, goal=2)
+        self.assertEqual(why, 'ok')
+        self.assertEqual(fb.create_pair(8202, 8203)[1], 'inviter_busy')
+        for uid in (8201, 8202):
+            for _ in range(2):
+                fb.log_past_group(uid, next(iter(fb.GROUP_TYPES)), 45)
+        st = fb.pair_status(pair, 8201)
+        self.assertEqual((st['me'], st['partner_done'], st['streak'], st['closed']), (2, 2, 1, True))
+        r = self.client.post('/api/friends/pair/goal', json={'goal': 4}, headers=ah).json()
+        self.assertEqual(r['pair']['goal'], 4)
+        self.assertEqual(r['pair']['streak'], 0)
+        self.assertEqual(self.client.post('/api/friends/pair/goal', json={'goal': 9}, headers=ah).status_code, 422)
+        png = self.client.get(r['card_url'])
+        self.assertEqual(png.headers['content-type'], 'image/png')
+        self.assertTrue(png.content.startswith(b'\x89PNG'))
+        self.assertEqual(self.client.get('/api/card/zzzzzzz.png').status_code, 404)
+        self.assertIsNone(self.client.delete('/api/friends/pair', headers=ah).json()['pair'])

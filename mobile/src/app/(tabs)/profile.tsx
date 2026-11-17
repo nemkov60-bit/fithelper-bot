@@ -82,6 +82,16 @@ export default function Profile() {
         ) : null}
       </Card>
 
+      <Pressable accessibilityRole="button" accessibilityLabel="Друзья" onPress={() => router.push('/friends')}>
+        <Card style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+          <View style={{ flex: 1, gap: 4 }}>
+            <T v="h3">Друзья</T>
+            <T v="small">{IOS_STORE ? 'Пригласи друга и тренируйтесь вместе' : 'Пригласи друга — вам обоим дни подписки в подарок'}</T>
+          </View>
+          <T v="small" style={{ color: colors.accent }}>Открыть</T>
+        </Card>
+      </Pressable>
+
       {!me.trainer && !me.is_trainer ? (
         <Card accent style={{ gap: 10 }}>
           <T v="h3" style={{ color: colors.onAccent }}>{IOS_STORE ? 'Персональный тренер' : 'Улучшить: занятия с тренером'}</T>

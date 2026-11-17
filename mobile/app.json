@@ -37,7 +37,8 @@
       "expo-router",
       "expo-secure-store",
       "expo-web-browser",
-      "expo-font"
+      "expo-font",
+      "expo-sharing"
     ],
     "scheme": "fithelper",
     "backgroundColor": "#0E0F0F",

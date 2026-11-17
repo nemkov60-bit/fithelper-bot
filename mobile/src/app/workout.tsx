@@ -150,7 +150,8 @@ export default function Workout() {
           <T v="small">На этой неделе: {summary.week.done} из {summary.week.plan} тренировок</T>
           <ProgressBar value={summary.week.done / summary.week.plan} />
         </Card>
-        <Button title="На главную" onPress={() => router.replace('/home')} />
+        <Button title="Поделиться результатом" icon="send" onPress={() => router.replace('/friends')} />
+        <Button title="На главную" variant="ghost" onPress={() => router.replace('/home')} />
       </Screen>
     );
   }
