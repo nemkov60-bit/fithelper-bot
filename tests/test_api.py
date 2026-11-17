@@ -386,8 +386,8 @@ class ThemeTests(unittest.TestCase):
         h = {'Authorization': f'Bearer {api.create_session(9301)}'}
         client.put('/api/me/profile', json={**PROFILE, 'gender': 'f'}, headers=h)
         self.assertIsNone(client.get('/api/me', headers=h).json()['theme'])
-        self.assertEqual(client.patch('/api/me/settings', json={'theme': 'women'}, headers=h).json()['theme'], 'women')
-        self.assertEqual(client.patch('/api/me/settings', json={'theme': 'pink'}, headers=h).status_code, 422)
+        self.assertEqual(client.patch('/api/me/settings', json={'theme': 'classic'}, headers=h).json()['theme'], 'classic')
+        self.assertEqual(client.patch('/api/me/settings', json={'theme': 'women'}, headers=h).status_code, 422)
 
 
 class BodyChatHeroTests(unittest.TestCase):

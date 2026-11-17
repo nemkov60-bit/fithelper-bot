@@ -47,6 +47,7 @@ export default function Profile() {
         <Button title="Заполнить анкету заново" variant="ghost" small onPress={() => router.push('/onboarding')} />
       </Card>
 
+      {THEME_NAMES.length > 1 ? (
       <Card style={{ gap: 10 }}>
         <T v="h3">Оформление</T>
         <View style={{ gap: 8 }}>
@@ -72,6 +73,7 @@ export default function Profile() {
           })}
         </View>
       </Card>
+      ) : null}
 
       <Card style={{ gap: 10 }}>
         <T v="h3">Где тренируешься обычно</T>

@@ -2,7 +2,6 @@ import { createContext, Fragment, useCallback, useContext, useEffect, useMemo, u
 
 import { api } from './api';
 import { useAuth } from './auth';
-import { loadThemeFonts } from './fonts';
 import { getItem, setItem } from './storage';
 import { applyTheme, isThemeName, type ThemeName } from './theme';
 
@@ -18,11 +17,6 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
   const chosen = useRef(false);
 
   const set = useCallback(async (t: ThemeName) => {
-    try {
-      await loadThemeFonts(t);
-    } catch {
-      // шрифт не загрузился — тема покажется со шрифтами по умолчанию
-    }
     applyTheme(t);
     setThemeState(t);
   }, []);

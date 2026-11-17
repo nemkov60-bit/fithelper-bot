@@ -213,7 +213,7 @@ class SettingsIn(BaseModel):
     theme: str | None = None
 
 
-THEMES = ('classic', 'men', 'women', 'premium', 'steel', 'light')
+THEMES = ('classic',)  # пока одна тема — «Неоновый лайм»
 
 
 class StartIn(BaseModel):
