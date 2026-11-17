@@ -8,10 +8,10 @@ import { rub } from '../../lib/format';
 import { colors, fonts } from '../../lib/theme';
 import type { Earnings } from '../../lib/trainer';
 
-const inputStyle = {
+const inputStyle = () => ({
   minWidth: 0, height: 48, borderRadius: 14, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.bg,
   color: colors.text, paddingHorizontal: 14, fontFamily: fonts.semibold, fontSize: 15,
-};
+});
 const TYPES = { coaching: 'ведение', referral: 'реферал', refund: 'возврат' } as const;
 const STATUSES = { pending: 'ожидает', available: 'доступно', paid: 'выплачено', cancelled: 'отменено' } as const;
 const HINTS: Record<string, string> = {
@@ -110,12 +110,12 @@ export default function EarningsScreen() {
           <T v="small">Выплаты получают только самозанятые и ИП. С каждой выплаты формируй чек (самозанятый — в «Мой налог»).</T>
           <Choice options={data.legal_statuses} value={form.legal_status} onChange={(legal_status) => setForm({ ...form, legal_status })} />
           <TextInput value={form.full_name} onChangeText={(full_name) => setForm({ ...form, full_name })} placeholder="ФИО полностью"
-            placeholderTextColor={colors.muted} accessibilityLabel="ФИО" maxLength={120} style={inputStyle} />
+            placeholderTextColor={colors.muted} accessibilityLabel="ФИО" maxLength={120} style={inputStyle()} />
           <TextInput value={form.inn} onChangeText={(inn) => setForm({ ...form, inn })} placeholder="ИНН (12 цифр)" keyboardType="number-pad"
-            placeholderTextColor={colors.muted} accessibilityLabel="ИНН" maxLength={12} style={inputStyle} />
+            placeholderTextColor={colors.muted} accessibilityLabel="ИНН" maxLength={12} style={inputStyle()} />
           <Choice options={data.methods} value={form.method} onChange={(method) => setForm({ ...form, method })} />
           <TextInput value={form.details} onChangeText={(details) => setForm({ ...form, details })} placeholder={HINTS[form.method]}
-            placeholderTextColor={colors.muted} accessibilityLabel="Реквизиты для перевода" maxLength={200} style={inputStyle} />
+            placeholderTextColor={colors.muted} accessibilityLabel="Реквизиты для перевода" maxLength={200} style={inputStyle()} />
           {formError ? <T v="small" style={{ color: colors.orange }}>{formError}</T> : null}
           <View style={{ flexDirection: 'row', gap: 8 }}>
             <Button title="Сохранить реквизиты" small loading={busy} style={{ flex: 1 }} onPress={save} />

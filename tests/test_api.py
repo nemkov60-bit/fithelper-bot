@@ -377,3 +377,14 @@ class FriendsTests(unittest.TestCase):
         self.assertTrue(png.content.startswith(b'\x89PNG'))
         self.assertEqual(self.client.get('/api/card/zzzzzzz.png').status_code, 404)
         self.assertIsNone(self.client.delete('/api/friends/pair', headers=ah).json()['pair'])
+
+
+class ThemeTests(unittest.TestCase):
+    def test_theme_setting(self):
+        client = TestClient(api.create_app())
+        fb.ensure_user_row(9301, 'Лена')
+        h = {'Authorization': f'Bearer {api.create_session(9301)}'}
+        client.put('/api/me/profile', json={**PROFILE, 'gender': 'f'}, headers=h)
+        self.assertIsNone(client.get('/api/me', headers=h).json()['theme'])
+        self.assertEqual(client.patch('/api/me/settings', json={'theme': 'women'}, headers=h).json()['theme'], 'women')
+        self.assertEqual(client.patch('/api/me/settings', json={'theme': 'pink'}, headers=h).status_code, 422)

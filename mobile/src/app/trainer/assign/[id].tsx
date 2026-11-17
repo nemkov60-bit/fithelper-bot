@@ -11,10 +11,10 @@ const REPS = [[5, 5], [6, 8], [8, 10], [10, 12], [12, 15], [15, 20]];
 const SECS = [[30, 30], [45, 45], [60, 60], [30, 60]];
 const DAYS = ['вс', 'пн', 'вт', 'ср', 'чт', 'пт', 'сб'];
 
-const inputStyle = {
+const inputStyle = () => ({
   minWidth: 0, height: 48, borderRadius: 14, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.bg,
   color: colors.text, paddingHorizontal: 14, fontFamily: fonts.semibold, fontSize: 15,
-} as const;
+} as const);
 
 function isoDate(offset: number) {
   const d = new Date();
@@ -98,7 +98,7 @@ export default function Assign() {
 
       <Card style={{ gap: 10 }}>
         <T v="label">НАЗВАНИЕ</T>
-        <TextInput value={title} onChangeText={setTitle} maxLength={80} accessibilityLabel="Название тренировки" style={inputStyle} />
+        <TextInput value={title} onChangeText={setTitle} maxLength={80} accessibilityLabel="Название тренировки" style={inputStyle()} />
         <T v="label">ДЕНЬ</T>
         <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
           {[0, 1, 2, 3, 4, 5, 6].map((o) => {
@@ -113,7 +113,7 @@ export default function Assign() {
         </View>
         <T v="label">КОММЕНТАРИЙ</T>
         <TextInput value={note} onChangeText={setNote} maxLength={500} multiline placeholder="Подопечный увидит его перед началом"
-          placeholderTextColor={colors.muted} accessibilityLabel="Комментарий" style={[inputStyle, { height: 80, paddingTop: 12, textAlignVertical: 'top' }]} />
+          placeholderTextColor={colors.muted} accessibilityLabel="Комментарий" style={[inputStyle(), { height: 80, paddingTop: 12, textAlignVertical: 'top' }]} />
       </Card>
 
       <T v="h2">Упражнения</T>
@@ -181,7 +181,7 @@ export default function Assign() {
                 <>
                   <T v="label">РАБОЧИЙ ВЕС, КГ (НЕОБЯЗАТЕЛЬНО)</T>
                   <TextInput value={weight} onChangeText={setWeight} keyboardType="decimal-pad" placeholder="Подопечный подберёт сам"
-                    placeholderTextColor={colors.muted} accessibilityLabel="Рабочий вес" style={inputStyle} />
+                    placeholderTextColor={colors.muted} accessibilityLabel="Рабочий вес" style={inputStyle()} />
                 </>
               ) : null}
               <View style={{ flexDirection: 'row', gap: 8 }}>

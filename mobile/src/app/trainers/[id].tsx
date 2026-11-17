@@ -12,10 +12,10 @@ import { IOS_STORE } from '../../lib/platform';
 import { colors, fonts } from '../../lib/theme';
 import type { TrainerDetail } from '../../lib/trainer';
 
-const inputStyle = {
+const inputStyle = () => ({
   minWidth: 0, borderRadius: 14, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.bg, color: colors.text,
   paddingHorizontal: 14, paddingTop: 12, fontFamily: fonts.semibold, fontSize: 15, height: 90, textAlignVertical: 'top' as const,
-};
+});
 
 // Профиль тренера: о себе, специализации, отзывы, заявка на ведение и оценка.
 export default function TrainerScreen() {
@@ -135,7 +135,7 @@ export default function TrainerScreen() {
             {IOS_STORE ? '' : ' Тариф COACH — оплата подключится позже, сейчас ведение бесплатно.'}
           </T>
           <TextInput value={message} onChangeText={setMessage} multiline maxLength={500} placeholder="Расскажи о цели, травмах, опыте (необязательно)"
-            placeholderTextColor={colors.muted} accessibilityLabel="Сообщение тренеру" style={inputStyle} />
+            placeholderTextColor={colors.muted} accessibilityLabel="Сообщение тренеру" style={inputStyle()} />
           <Button title="Отправить заявку" icon="send" loading={busy} onPress={sendRequest} />
         </Card>
       )}
@@ -145,7 +145,7 @@ export default function TrainerScreen() {
           <T v="h3">{t.my_review ? 'Твоя оценка' : 'Оцени тренера'}</T>
           <Stars value={rating} size={34} onChange={setRating} />
           <TextInput value={review} onChangeText={setReview} multiline maxLength={1000} placeholder="Что понравилось? (необязательно)"
-            placeholderTextColor={colors.muted} accessibilityLabel="Отзыв" style={inputStyle} />
+            placeholderTextColor={colors.muted} accessibilityLabel="Отзыв" style={inputStyle()} />
           <Button title={t.my_review ? 'Обновить отзыв' : 'Оставить отзыв'} small disabled={!rating} onPress={sendReview} />
         </Card>
       ) : null}

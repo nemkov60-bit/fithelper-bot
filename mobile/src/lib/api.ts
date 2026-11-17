@@ -74,6 +74,7 @@ export type Me = {
   is_admin: boolean;
   trainer: { id: number; name: string } | null;
   version: string;
+  theme: string | null;
 };
 
 export type Meta = {

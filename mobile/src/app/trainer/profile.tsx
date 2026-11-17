@@ -10,10 +10,10 @@ import { useAuth } from '../../lib/auth';
 import { colors, fonts } from '../../lib/theme';
 import type { TrainerProfile } from '../../lib/trainer';
 
-const inputStyle = {
+const inputStyle = () => ({
   minWidth: 0, height: 48, borderRadius: 14, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.bg,
   color: colors.text, paddingHorizontal: 14, fontFamily: fonts.semibold, fontSize: 15,
-} as const;
+} as const);
 
 // Профиль тренера в каталоге: фото, о себе, специализации, опыт, город и формат.
 export default function TrainerProfileScreen() {
@@ -77,7 +77,7 @@ export default function TrainerProfileScreen() {
         <T v="label">О СЕБЕ</T>
         <TextInput value={p.bio ?? ''} onChangeText={(bio) => set({ bio })} multiline maxLength={1500} accessibilityLabel="О себе"
           placeholder="Как работаешь, с кем, каких результатов добиваются подопечные" placeholderTextColor={colors.muted}
-          style={[inputStyle, { height: 130, paddingTop: 12, textAlignVertical: 'top' }]} />
+          style={[inputStyle(), { height: 130, paddingTop: 12, textAlignVertical: 'top' }]} />
         <T v="label">СПЕЦИАЛИЗАЦИИ</T>
         <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
           {Object.entries(p.specializations_all).map(([k, v]) => {
@@ -92,10 +92,10 @@ export default function TrainerProfileScreen() {
         </View>
         <T v="label">СТАЖ, ЛЕТ</T>
         <TextInput value={p.experience_years ? String(p.experience_years) : ''} keyboardType="number-pad" accessibilityLabel="Стаж в годах"
-          onChangeText={(v) => set({ experience_years: v ? Math.min(60, parseInt(v, 10) || 0) : null })} style={inputStyle} />
+          onChangeText={(v) => set({ experience_years: v ? Math.min(60, parseInt(v, 10) || 0) : null })} style={inputStyle()} />
         <T v="label">ОБРАЗОВАНИЕ И СЕРТИФИКАТЫ</T>
         <TextInput value={p.certificates ?? ''} onChangeText={(certificates) => set({ certificates })} multiline maxLength={1000}
-          accessibilityLabel="Сертификаты" style={[inputStyle, { height: 90, paddingTop: 12, textAlignVertical: 'top' }]} />
+          accessibilityLabel="Сертификаты" style={[inputStyle(), { height: 90, paddingTop: 12, textAlignVertical: 'top' }]} />
       </Card>
 
       <Card style={{ gap: 10 }}>
@@ -103,10 +103,10 @@ export default function TrainerProfileScreen() {
         <Segmented label="Формат" value={p.format ?? 'both'} onChange={(format) => set({ format })}
           options={[{ key: 'online', label: 'Онлайн' }, { key: 'offline', label: 'В зале' }, { key: 'both', label: 'Оба' }]} />
         <T v="label">ГОРОД</T>
-        <TextInput value={p.city ?? ''} onChangeText={(city) => set({ city })} maxLength={60} accessibilityLabel="Город" style={inputStyle} />
+        <TextInput value={p.city ?? ''} onChangeText={(city) => set({ city })} maxLength={60} accessibilityLabel="Город" style={inputStyle()} />
         <T v="label">ЛИМИТ ПОДОПЕЧНЫХ (ПУСТО — БЕЗ ЛИМИТА)</T>
         <TextInput value={p.max_clients ? String(p.max_clients) : ''} keyboardType="number-pad" accessibilityLabel="Лимит подопечных"
-          onChangeText={(v) => set({ max_clients: v ? parseInt(v, 10) || null : null })} style={inputStyle} />
+          onChangeText={(v) => set({ max_clients: v ? parseInt(v, 10) || null : null })} style={inputStyle()} />
         <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
           <T style={{ flex: 1, fontFamily: fonts.bold }}>Показывать меня в каталоге</T>
           <Switch value={p.listed} onValueChange={(listed) => set({ listed })} trackColor={{ true: colors.accent, false: colors.border }} />

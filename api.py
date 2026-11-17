@@ -177,6 +177,7 @@ def me_json(user):
         'id': user['user_id'], 'name': user.get('name') or '', 'profile_complete': fb.profile_complete(user),
         'profile': {k: user.get(k) for k in ('gender', 'age', 'goal', 'level', 'days', 'place', 'cycle_tracking',
                                              'cycle_len', 'period_len', 'period_start', 'target_weight', 'rest_timer')},
+        'theme': user.get('theme'),
         'subscription_until': user.get('sub_until') if fb.has_subscription(user) else None,
         'is_trainer': fb.is_trainer(user), 'is_admin': fb.is_admin(user['user_id']),
         'trainer': {'id': trainer['user_id'], 'name': fb.display_name(trainer, 'Тренер')} if trainer else None,
@@ -209,6 +210,10 @@ class SettingsIn(BaseModel):
     place: str | None = None
     rest_timer: bool | None = None
     target_weight: float | None = None
+    theme: str | None = None
+
+
+THEMES = ('classic', 'men', 'women', 'premium', 'steel', 'light')
 
 
 class StartIn(BaseModel):
@@ -381,6 +386,10 @@ def create_app(bot=None):
             fb.set_user_field(user['user_id'], 'rest_timer', 1 if body.rest_timer else 0)
         if body.target_weight is not None:
             fb.set_user_field(user['user_id'], 'target_weight', body.target_weight or None)
+        if body.theme is not None:
+            if body.theme not in THEMES:
+                raise HTTPException(422, 'Неизвестная тема')
+            fb.set_user_field(user['user_id'], 'theme', body.theme)
         return me_json(fb.get_user(user['user_id']))
 
     @app.post('/api/me/cycle/period-started')

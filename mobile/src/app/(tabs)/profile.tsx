@@ -6,10 +6,12 @@ import { Button, Card, Screen, Segmented, T } from '../../components/ui';
 import { api } from '../../lib/api';
 import { useAuth } from '../../lib/auth';
 import { IOS_STORE } from '../../lib/platform';
-import { colors, fonts } from '../../lib/theme';
+import { colors, fonts, THEME_NAMES, THEMES } from '../../lib/theme';
+import { useTheme } from '../../lib/themeContext';
 
 export default function Profile() {
   const { me, meta, refresh, signOut } = useAuth();
+  const { theme, setTheme } = useTheme();
   const [target, setTarget] = useState(me?.profile.target_weight ? String(me.profile.target_weight) : '');
   const [groupType, setGroupType] = useState<string | null>(null);
   const [minutes, setMinutes] = useState(55);
@@ -43,6 +45,32 @@ export default function Profile() {
         <T v="small">{label(meta.goals, p.goal)}</T>
         <T v="small">{label(meta.levels, p.level)} · {p.days} трен./нед.</T>
         <Button title="Заполнить анкету заново" variant="ghost" small onPress={() => router.push('/onboarding')} />
+      </Card>
+
+      <Card style={{ gap: 10 }}>
+        <T v="h3">Оформление</T>
+        <View style={{ gap: 8 }}>
+          {THEME_NAMES.map((name) => {
+            const t = THEMES[name];
+            const active = theme === name;
+            return (
+              <Pressable key={name} accessibilityRole="radio" accessibilityState={{ checked: active }} accessibilityLabel={`Оформление ${t.title}`}
+                onPress={() => setTheme(name)}
+                style={{ flexDirection: 'row', alignItems: 'center', gap: 12, padding: 10, borderRadius: 18, borderWidth: 1.5,
+                  borderColor: active ? colors.accent : colors.border, backgroundColor: active ? colors.surface2 : 'transparent' }}>
+                <View style={{ width: 52, height: 40, borderRadius: 12, backgroundColor: t.bg, borderWidth: 1, borderColor: t.border, padding: 6, gap: 4, justifyContent: 'center' }}>
+                  <View style={{ height: 8, borderRadius: 4, backgroundColor: t.surface2 }} />
+                  <View style={{ height: 10, width: 26, borderRadius: 5, backgroundColor: t.accent }} />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <T style={{ fontFamily: fonts.bold }}>{t.title}</T>
+                  <T v="small" style={{ fontSize: 12 }}>{t.hint}</T>
+                </View>
+                {active ? <T style={{ color: colors.accent, fontFamily: fonts.extrabold }}>✓</T> : null}
+              </Pressable>
+            );
+          })}
+        </View>
       </Card>
 
       <Card style={{ gap: 10 }}>

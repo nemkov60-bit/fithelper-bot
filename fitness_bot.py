@@ -76,7 +76,7 @@ TZ_NAME = os.environ.get('FITNESS_TZ', 'Europe/Moscow')
 log = logging.getLogger('fitness_bot')
 
 # Версия кода: видна в «🛠 Админ» и в логах запуска — по ней видно, обновился ли бот на хостинге.
-BOT_VERSION = '2026-11-17 · друзья и карточки'
+BOT_VERSION = '2026-11-17 · темы оформления'
 
 
 def now():
@@ -721,7 +721,7 @@ WORKOUT_COLUMNS = {'kind': "TEXT DEFAULT 'strength'", 'group_type': 'TEXT', 'gro
 
 USER_COLUMNS = {
     'is_trainer': 'INTEGER DEFAULT 0', 'trainer_status': 'TEXT', 'trainer_id': 'INTEGER', 'referred_by': 'INTEGER',
-    'ref_code': 'TEXT', 'sub_until': 'TEXT', 'invited_by': 'INTEGER', 'invite_code': 'TEXT',
+    'ref_code': 'TEXT', 'sub_until': 'TEXT', 'invited_by': 'INTEGER', 'invite_code': 'TEXT', 'theme': 'TEXT',
     'gender': 'TEXT', 'age': 'TEXT', 'cycle_tracking': 'INTEGER DEFAULT 0', 'period_start': 'TEXT',
     'cycle_len': 'INTEGER DEFAULT 28', 'period_len': 'INTEGER DEFAULT 5',
 }
@@ -852,7 +852,7 @@ def save_user(uid, name, profile):
 def set_user_field(uid, field, value):
     assert field in ('day_index', 'target_weight', 'rest_timer', 'cycle_tracking', 'period_start',
                      'cycle_len', 'period_len', 'place', 'goal', 'level', 'days', 'trainer_status', 'trainer_id',
-                     'sub_until')
+                     'sub_until', 'theme')
     with connect() as c:
         c.execute(f'UPDATE users SET {field}=? WHERE user_id=?', (value, uid))
 

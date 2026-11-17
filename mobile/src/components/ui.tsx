@@ -13,7 +13,8 @@ import { Icon, type IconName } from './Icon';
 
 type TextVariant = 'h1' | 'h2' | 'h3' | 'body' | 'label' | 'small' | 'big';
 
-const textStyles: Record<TextVariant, TextStyle> = {
+// Функция, а не константа: цвет берётся из текущей темы.
+const textStyles = (): Record<TextVariant, TextStyle> => ({
   big: { fontFamily: fonts.extrabold, fontSize: 30, letterSpacing: -0.8, color: colors.text },
   h1: { fontFamily: fonts.extrabold, fontSize: 28, letterSpacing: -0.6, color: colors.text },
   h2: { fontFamily: fonts.extrabold, fontSize: 20, letterSpacing: -0.3, color: colors.text },
@@ -21,12 +22,12 @@ const textStyles: Record<TextVariant, TextStyle> = {
   body: { fontFamily: fonts.semibold, fontSize: 15, color: colors.text, lineHeight: 21 },
   label: { fontFamily: fonts.bold, fontSize: 12, letterSpacing: 0.6, color: colors.muted },
   small: { fontFamily: fonts.semibold, fontSize: 13, color: colors.muted, lineHeight: 18 },
-};
+});
 
 export function T({ v = 'body', style, children, numberOfLines }: {
   v?: TextVariant; style?: StyleProp<TextStyle>; children: ReactNode; numberOfLines?: number;
 }) {
-  return <Text style={[textStyles[v], style]} numberOfLines={numberOfLines}>{children}</Text>;
+  return <Text style={[textStyles()[v], style]} numberOfLines={numberOfLines}>{children}</Text>;
 }
 
 // ---------- Экран ----------
@@ -197,14 +198,16 @@ export function IconButton({ icon, label, onPress, style }: { icon: IconName; la
   );
 }
 
-export const s = StyleSheet.create({
-  card: { backgroundColor: colors.surface, borderColor: colors.border, borderWidth: 1, borderRadius: radius.lg, padding: 16 },
-  cardAccent: { backgroundColor: colors.accent, borderRadius: radius.lg, padding: 16 },
-  button: { borderRadius: radius.pill, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10, paddingHorizontal: 18 },
-  segmented: { flexDirection: 'row', gap: 6, padding: 5, borderRadius: radius.pill, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border },
-  segment: { flex: 1, height: 44, borderRadius: radius.pill, alignItems: 'center', justifyContent: 'center' },
-  chip: { flex: 1, minWidth: 48, height: 48, borderRadius: 16, alignItems: 'center', justifyContent: 'center' },
-  badge: { alignSelf: 'flex-start', paddingHorizontal: 10, paddingVertical: 5, borderRadius: radius.pill },
-  iconButton: { width: 46, height: 46, borderRadius: 23, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, alignItems: 'center', justifyContent: 'center' },
-  row: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-});
+// Стили, зависящие от цветов, — геттеры: читают текущую тему в момент отрисовки.
+const shadow = () => (colors.light ? { shadowColor: colors.accent, shadowOpacity: 0.14, shadowRadius: 18, shadowOffset: { width: 0, height: 8 }, elevation: 3 } : {});
+export const s = {
+  get card() { return { backgroundColor: colors.surface, borderColor: colors.border, borderWidth: 1, borderRadius: radius.lg, padding: 16, ...shadow() }; },
+  get cardAccent() { return { backgroundColor: colors.accent, borderRadius: radius.lg, padding: 16, ...shadow() }; },
+  button: { borderRadius: radius.pill, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10, paddingHorizontal: 18 } as const,
+  get segmented() { return { flexDirection: 'row', gap: 6, padding: 5, borderRadius: radius.pill, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border } as const; },
+  segment: { flex: 1, height: 44, borderRadius: radius.pill, alignItems: 'center', justifyContent: 'center' } as const,
+  chip: { flex: 1, minWidth: 48, height: 48, borderRadius: 16, alignItems: 'center', justifyContent: 'center' } as const,
+  badge: { alignSelf: 'flex-start', paddingHorizontal: 10, paddingVertical: 5, borderRadius: radius.pill } as const,
+  get iconButton() { return { width: 46, height: 46, borderRadius: 23, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, alignItems: 'center', justifyContent: 'center' } as const; },
+  row: { flexDirection: 'row', alignItems: 'center', gap: 12 } as const,
+};
