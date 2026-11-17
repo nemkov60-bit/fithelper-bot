@@ -11,7 +11,7 @@ export type TrainerHome = {
   requisites_ok: boolean;
   levels: { name: string; from: number; percent: number; description: string }[];
   links: { code: string; label: string; joined: number; subs: number; url: string }[];
-  clients: { id: number; name: string; week: number; plan: number; goal: string; subscription: boolean; pending: number }[];
+  clients: { id: number; name: string; week: number; plan: number; goal: string; subscription: boolean; pending: number; unread: number }[];
   rating: { value: number | null; count: number };
   profile_listed: boolean;
   requests: TrainerRequest[];
@@ -33,6 +33,8 @@ export type ClientCard = {
   assignments: Assignment[];
   messages: { mine: boolean; text: string; at: string }[];
   program_days: string[];
+  measurements: import('./api').Measurements;
+  measure_labels: Record<string, string>;
 };
 
 export type CatalogExercise = {

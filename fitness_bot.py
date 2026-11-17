@@ -76,7 +76,7 @@ TZ_NAME = os.environ.get('FITNESS_TZ', 'Europe/Moscow')
 log = logging.getLogger('fitness_bot')
 
 # Версия кода: видна в «🛠 Админ» и в логах запуска — по ней видно, обновился ли бот на хостинге.
-BOT_VERSION = '2026-11-17 · темы оформления'
+BOT_VERSION = '2026-11-17 · шрифты, фото, объёмы, чат'
 
 
 def now():
@@ -784,6 +784,11 @@ def init_db():
         CREATE TABLE IF NOT EXISTS pairs(
             id INTEGER PRIMARY KEY AUTOINCREMENT, a_id INTEGER, b_id INTEGER, goal INTEGER DEFAULT 3,
             created_at TEXT, ended_at TEXT);
+        CREATE TABLE IF NOT EXISTS app_photos(
+            slot TEXT, gender TEXT, data BLOB, mime TEXT, updated_at TEXT, PRIMARY KEY(slot, gender));
+        CREATE TABLE IF NOT EXISTS body_measurements(
+            id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER, chest REAL, waist REAL, hips REAL, arm REAL,
+            thigh REAL, created_at TEXT);
         CREATE TABLE IF NOT EXISTS login_codes(
             code TEXT PRIMARY KEY, user_id INTEGER, created_at TEXT);
         CREATE TABLE IF NOT EXISTS api_sessions(
@@ -820,6 +825,9 @@ def init_db():
         c.execute('CREATE INDEX IF NOT EXISTS users_trainer ON users(trainer_id)')
         c.execute('CREATE INDEX IF NOT EXISTS users_referred ON users(referred_by)')
         c.execute('CREATE INDEX IF NOT EXISTS users_invited ON users(invited_by)')
+        if 'read_at' not in {r['name'] for r in c.execute('PRAGMA table_info(messages)')}:
+            c.execute('ALTER TABLE messages ADD COLUMN read_at TEXT')
+        c.execute('CREATE INDEX IF NOT EXISTS messages_pair ON messages(from_id, to_id, id)')
         c.execute('CREATE UNIQUE INDEX IF NOT EXISTS users_invite_code ON users(invite_code)')
 
 
@@ -2312,7 +2320,8 @@ def goal_weight_line(bw, target):
 
 async def show_weight(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data['await'] = 'bw'
-    await update.effective_message.reply_text(weight_text(update.effective_user.id), parse_mode=ParseMode.HTML)
+    await update.effective_message.reply_text(weight_text(update.effective_user.id), parse_mode=ParseMode.HTML,
+                                              reply_markup=kb([[('📏 Объёмы тела', 'ms:show')]]))
 
 
 def goals_text(uid):
@@ -2584,6 +2593,9 @@ async def callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await trainer_callback(data, update, context)
     elif data.startswith('fr:'):
         await friends_callback(data, update, context)
+    elif data == 'ms:show':
+        context.user_data['await'] = 'measure'
+        await update.callback_query.message.reply_text(measurements_text(update.effective_user.id), parse_mode=ParseMode.HTML)
     elif data.startswith('cl:'):
         await client_callback(data, update, context)
     elif data.startswith('wu:'):
@@ -2765,6 +2777,18 @@ async def text_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             user = get_user(uid)
             await message.reply_text(cycle_screen_text(user), parse_mode=ParseMode.HTML,
                                      reply_markup=cycle_screen_kb(user))
+        return
+    if awaiting == 'measure':
+        values = parse_measurements(text)
+        if not values:
+            await message.reply_text('Не понял. Отправь до 5 чисел в см через пробел: грудь талия бёдра рука бедро, '
+                                     'например <code>100 80 95 35 55</code> («-» — пропустить) или /cancel.',
+                                     parse_mode=ParseMode.HTML)
+            return
+        add_measurements(uid, values)
+        context.user_data.pop('await', None)
+        await message.reply_text('Записал ✅\n\n' + measurements_text(uid).split('\n\nНовый замер')[0],
+                                 parse_mode=ParseMode.HTML)
         return
     if awaiting == 'bw':
         w = parse_weight(text)
@@ -2948,7 +2972,7 @@ async def admin_panel(update: Update, context: ContextTypes.DEFAULT_TYPE):
 def admin_menu_kb():
     return kb([[('📸 Фото упражнений', 'ad:groups')],
                [('🎓 Тренеры', 'ad:tr'), ('💳 Выдать подписку', 'ad:sub')],
-               [('💸 Выплаты тренерам', 'ad:pay')],
+               [('💸 Выплаты тренерам', 'ad:pay'), ('🖼 Фото моделей', 'ad:hero')],
                [('💾 Резервная копия базы', 'ad:backup')]])
 
 
@@ -3055,6 +3079,20 @@ async def admin_callback(data, update, context):
     elif data == 'ad:sub':
         context.user_data['await'] = 'ad_sub'
         await message.reply_text(SUB_HELP, parse_mode=ParseMode.HTML)
+    elif data == 'ad:hero':
+        await message.reply_text(admin_hero_text(), parse_mode=ParseMode.HTML, reply_markup=admin_hero_kb())
+    elif parts[1] in ('hu', 'hp', 'hd') and len(parts) == 3 and parts[2] in HERO_GENDERS:
+        g = parts[2]
+        if parts[1] == 'hu':
+            context.user_data['await'] = f'hero:{g}'
+            await message.reply_text(f'Отправь фото ({HERO_GENDERS[g]} версия) — лучше файлом, без сжатия. /cancel — отмена.')
+        elif parts[1] == 'hp':
+            await message.reply_text(f'<b>Промт ({HERO_GENDERS[g]} версия)</b>\n\n{html.escape(hero_prompt(g))}',
+                                     parse_mode=ParseMode.HTML)
+        else:
+            delete_app_photo('home', g)
+            await message.reply_text('🗑 Фото удалено.\n\n' + admin_hero_text(), parse_mode=ParseMode.HTML,
+                                     reply_markup=admin_hero_kb())
     elif data == 'ad:pay':
         await message.reply_text(admin_payouts_text(), parse_mode=ParseMode.HTML, reply_markup=admin_payouts_kb())
     elif data == 'ad:payreg':
@@ -3123,6 +3161,24 @@ async def admin_callback(data, update, context):
             await show_admin_exercise(message, ex)
 
 
+async def save_hero_from_message(message, context, gender):
+    if message.photo:
+        tg_file, mime = await message.photo[-1].get_file(), 'image/jpeg'
+    elif message.document and (message.document.mime_type or '') in ('image/jpeg', 'image/png', 'image/webp'):
+        tg_file, mime = await message.document.get_file(), message.document.mime_type
+    else:
+        await message.reply_text('Нужна картинка JPG, PNG или WEBP.')
+        return
+    data = bytes(await tg_file.download_as_bytearray())
+    if len(data) > 6 * 1024 * 1024:
+        await message.reply_text('Файл больше 6 МБ — сожми его и отправь ещё раз.')
+        return
+    save_app_photo('home', gender, data, mime)
+    context.user_data.pop('await', None)
+    await message.reply_text(f'✅ Фото ({HERO_GENDERS[gender]} версия) сохранено — оно уже на главном экране приложения.\n\n'
+                             + admin_hero_text(), parse_mode=ParseMode.HTML, reply_markup=admin_hero_kb())
+
+
 async def photo_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Фото от администратора → картинка техники упражнения."""
     uid = update.effective_user.id
@@ -3131,6 +3187,9 @@ async def photo_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
     target = None
     awaiting = context.user_data.get('await') or ''
+    if awaiting.startswith('hero:'):
+        await save_hero_from_message(message, context, awaiting.split(':')[1])
+        return
     # Быстрый способ: фото с подписью «bench 1» или «bench 1 f» (подпись важнее ожидаемого кадра).
     m = re.fullmatch(r'\s*([a-z_]+)[\s_]+(\d)(?:[\s_]+(f|ж|m|м))?\s*', (message.caption or '').lower())
     if m and m.group(1) in EXERCISES and 1 <= int(m.group(2)) <= frame_count(m.group(1)):
@@ -3377,6 +3436,133 @@ def save_trainer_profile(tid, data):
         c.execute(sql, (tid, *[values[k] for k in TRAINER_PROFILE_FIELDS], now().isoformat(timespec='seconds')))
 
 
+# ---------- Объёмы тела ----------
+MEASURES = {'chest': 'Грудь', 'waist': 'Талия', 'hips': 'Бёдра', 'arm': 'Рука (бицепс)', 'thigh': 'Бедро (нога)'}
+
+
+def add_measurements(uid, values):
+    """values: {поле: см}; пустые поля можно не передавать."""
+    clean = {k: round(float(v), 1) for k, v in values.items() if k in MEASURES and v and 20 <= float(v) <= 250}
+    if not clean:
+        return None
+    with connect() as c:
+        return c.execute(f'INSERT INTO body_measurements(user_id, {", ".join(clean)}, created_at) '
+                         f'VALUES(?, {", ".join("?" * len(clean))}, ?)',
+                         (uid, *clean.values(), now().isoformat(timespec='seconds'))).lastrowid
+
+
+def measurements(uid):
+    with connect() as c:
+        return [dict(r) for r in c.execute('SELECT * FROM body_measurements WHERE user_id=? ORDER BY created_at, id', (uid,))]
+
+
+def delete_measurement(uid, mid):
+    with connect() as c:
+        return c.execute('DELETE FROM body_measurements WHERE id=? AND user_id=?', (mid, uid)).rowcount
+
+
+def measurements_summary(uid):
+    """По каждому объёму: текущее значение, изменение к предыдущему замеру и к первому."""
+    rows = measurements(uid)
+    out = {}
+    for k in MEASURES:
+        vals = [(r['created_at'][:10], r[k]) for r in rows if r.get(k)]
+        if vals:
+            out[k] = {'value': vals[-1][1], 'date': vals[-1][0],
+                      'prev_delta': round(vals[-1][1] - vals[-2][1], 1) if len(vals) > 1 else None,
+                      'total_delta': round(vals[-1][1] - vals[0][1], 1) if len(vals) > 1 else None,
+                      'history': [{'date': d, 'value': v} for d, v in vals]}
+    return out
+
+
+def parse_measurements(text):
+    """«100 80 95 35 55» (грудь талия бёдра рука бедро; «-» — пропустить) → {поле: см} или None."""
+    parts = re.split(r'[\s;/]+', (text or '').strip().replace(',', '.'))
+    if not 1 <= len(parts) <= 5:
+        return None
+    values = {}
+    for key, p in zip(MEASURES, parts):
+        if p in ('-', '—', '0'):
+            continue
+        try:
+            v = float(p)
+        except ValueError:
+            return None
+        if not 20 <= v <= 250:
+            return None
+        values[key] = v
+    return values or None
+
+
+def measurements_text(uid):
+    summary = measurements_summary(uid)
+    lines = ['<b>📏 Объёмы тела</b>', '']
+    if not summary:
+        lines.append('Замеров пока нет.')
+    for k, label in MEASURES.items():
+        if k in summary:
+            m = summary[k]
+            delta = f' ({"+" if m["total_delta"] > 0 else ""}{fmt_w(m["total_delta"])} см с начала)' if m['total_delta'] else ''
+            lines.append(f'{label}: <b>{fmt_w(m["value"])} см</b>{delta}')
+    lines += ['', 'Новый замер — отправь числа в сантиметрах через пробел в порядке:\n'
+              '<b>грудь талия бёдра рука бедро</b>\nНапример: <code>100 80 95 35 55</code>. '
+              'Что не мерил(а) — поставь «-». Мерить лучше утром, натощак, раз в 2–4 недели.']
+    return '\n'.join(lines)
+
+
+# ---------- Фото моделей для приложения (главный экран), отдельно для мужской и женской версии ----------
+HERO_GENDERS = {'m': '👨 мужская', 'f': '👩 женская'}
+
+
+def save_app_photo(slot, gender, data, mime):
+    with connect() as c:
+        c.execute('INSERT OR REPLACE INTO app_photos(slot, gender, data, mime, updated_at) VALUES(?,?,?,?,?)',
+                  (slot, gender, data, mime, now().isoformat(timespec='seconds')))
+
+
+def get_app_photo(slot, gender):
+    with connect() as c:
+        row = c.execute('SELECT data, mime, updated_at FROM app_photos WHERE slot=? AND gender=?', (slot, gender)).fetchone()
+    return dict(row) if row else None
+
+
+def app_photo_version(slot, gender):
+    with connect() as c:
+        row = c.execute('SELECT updated_at FROM app_photos WHERE slot=? AND gender=?', (slot, gender)).fetchone()
+    return row[0] if row else None
+
+
+def delete_app_photo(slot, gender):
+    with connect() as c:
+        c.execute('DELETE FROM app_photos WHERE slot=? AND gender=?', (slot, gender))
+
+
+def hero_prompt(gender):
+    text = (Path(__file__).resolve().parent / 'MODEL_PHOTO_PROMPTS.md').read_text(encoding='utf-8')
+    part = text.split('## 👨')[1].split('## 👩')[0] if gender == 'm' else text.split('## 👩')[1].split('## Советы')[0]
+    return part.split('\n', 1)[1].strip()
+
+
+def admin_hero_kb():
+    rows = []
+    for g, label in HERO_GENDERS.items():
+        has = app_photo_version('home', g)
+        rows.append([(f'📤 Загрузить {label.split()[0]}', f'ad:hu:{g}'), (f'📝 Промт {label.split()[0]}', f'ad:hp:{g}')]
+                    + ([(f'🗑 {label.split()[0]}', f'ad:hd:{g}')] if has else []))
+    rows.append([('⬅️ Админка', 'ad:menu')])
+    return kb(rows)
+
+
+def admin_hero_text():
+    lines = ['<b>🖼 Фото моделей для приложения</b>', '',
+             'Фото показывается на главном экране в карточке «Тренировка дня»: мужчинам — мужская версия, '
+             'девушкам — женская. Формат — горизонтальный 16:10, модель справа, слева место для текста.', '']
+    for g, label in HERO_GENDERS.items():
+        v = app_photo_version('home', g)
+        lines.append(f'{label.capitalize()}: ' + (f'✅ загружено {v[:10]}' if v else '— нет'))
+    return '\n'.join(lines)
+
+
 def save_trainer_photo(tid, data, mime):
     with connect() as c:
         c.execute('INSERT OR REPLACE INTO trainer_photos(user_id, data, mime, updated_at) VALUES(?,?,?,?)',
@@ -3508,8 +3694,32 @@ async def decide_coach_request(bot, trainer, rid, accept):
 
 def save_message(from_id, to_id, text):
     with connect() as c:
-        c.execute('INSERT INTO messages(from_id, to_id, text, created_at) VALUES(?,?,?,?)',
-                  (from_id, to_id, text, now().isoformat(timespec='seconds')))
+        mid = c.execute('INSERT INTO messages(from_id, to_id, text, created_at) VALUES(?,?,?,?)',
+                        (from_id, to_id, text, now().isoformat(timespec='seconds'))).lastrowid
+    mark_read(from_id, to_id)  # ответил — значит, прочитал входящие
+    return mid
+
+
+def chat_messages(a, b, after_id=0, limit=300):
+    with connect() as c:
+        rows = c.execute('''SELECT * FROM (SELECT * FROM messages WHERE ((from_id=? AND to_id=?) OR (from_id=? AND to_id=?))
+                            AND id>? ORDER BY id DESC LIMIT ?) ORDER BY id''', (a, b, b, a, after_id, limit)).fetchall()
+    return [dict(r) for r in rows]
+
+
+def mark_read(reader, other):
+    with connect() as c:
+        c.execute('UPDATE messages SET read_at=? WHERE to_id=? AND from_id=? AND read_at IS NULL',
+                  (now().isoformat(timespec='seconds'), reader, other))
+
+
+def unread_count(reader, other=None):
+    q, args = 'SELECT COUNT(*) FROM messages WHERE to_id=? AND read_at IS NULL', [reader]
+    if other is not None:
+        q += ' AND from_id=?'
+        args.append(other)
+    with connect() as c:
+        return c.execute(q, args).fetchone()[0]
 
 
 def recent_messages(a, b, limit=3):

@@ -388,3 +388,63 @@ class ThemeTests(unittest.TestCase):
         self.assertIsNone(client.get('/api/me', headers=h).json()['theme'])
         self.assertEqual(client.patch('/api/me/settings', json={'theme': 'women'}, headers=h).json()['theme'], 'women')
         self.assertEqual(client.patch('/api/me/settings', json={'theme': 'pink'}, headers=h).status_code, 422)
+
+
+class BodyChatHeroTests(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls.client = TestClient(api.create_app())
+
+    def h(self, uid, name, gender='m'):
+        fb.ensure_user_row(uid, name)
+        hd = {'Authorization': f'Bearer {api.create_session(uid)}'}
+        self.client.put('/api/me/profile', json={**PROFILE, 'gender': gender}, headers=hd)
+        return hd
+
+    def test_measurements(self):
+        h = self.h(9401, 'Иван')
+        self.assertEqual(fb.parse_measurements('100 80 - 35,5'), {'chest': 100, 'waist': 80, 'arm': 35.5})
+        self.assertIsNone(fb.parse_measurements('100 abc'))
+        self.assertIsNone(fb.parse_measurements('5'))
+        self.assertEqual(self.client.post('/api/measurements', json={}, headers=h).status_code, 422)
+        self.assertEqual(self.client.post('/api/measurements', json={'waist': 500}, headers=h).status_code, 422)
+        self.client.post('/api/measurements', json={'chest': 100, 'waist': 84}, headers=h)
+        r = self.client.post('/api/measurements', json={'waist': 81.5}, headers=h).json()['measurements']
+        self.assertEqual(r['waist']['value'], 81.5)
+        self.assertEqual(r['waist']['total_delta'], -2.5)
+        self.assertIsNone(r['chest']['total_delta'])
+        self.assertIn('waist', self.client.get('/api/progress', headers=h).json()['measurements'])
+
+    def test_hero_photo(self):
+        h = self.h(9402, 'Оля', 'f')
+        self.assertIsNone(self.client.get('/api/today', headers=h).json()['hero_url'])
+        fb.save_app_photo('home', 'f', b'\xff\xd8jpegdata', 'image/jpeg')
+        url = self.client.get('/api/today', headers=h).json()['hero_url']
+        self.assertTrue(url.startswith('/api/hero/f.jpg?v='))
+        self.assertEqual(self.client.get(url).content, b'\xff\xd8jpegdata')
+        self.assertEqual(self.client.get('/api/hero/m.jpg').status_code, 404)
+        self.assertIn('RU', fb.hero_prompt('m') + 'RU')
+        self.assertIn('мужчина', fb.hero_prompt('m'))
+        self.assertIn('девушка', fb.hero_prompt('f'))
+        fb.delete_app_photo('home', 'f')
+
+    def test_chat(self):
+        th = self.h(9411, 'Тренер Лёша')
+        fb.make_trainer(9411)
+        ch = self.h(9412, 'Клиент Петя')
+        sh = self.h(9413, 'Чужой')
+        with fb.connect() as c:
+            c.execute('UPDATE users SET trainer_id=9411 WHERE user_id=9412')
+        self.assertEqual(self.client.get('/api/chat/9411', headers=sh).status_code, 404)
+        m = self.client.post('/api/chat/9411', json={'text': 'Привет!'}, headers=ch).json()['message']
+        self.assertTrue(m['mine'])
+        self.assertFalse(m['read'])
+        self.assertEqual(fb.unread_count(9411, 9412), 1)
+        r = self.client.get('/api/chat/9412', headers=th).json()
+        self.assertEqual((r['peer']['role'], r['messages'][0]['text'], r['messages'][0]['mine']), ('client', 'Привет!', False))
+        self.assertEqual(fb.unread_count(9411), 0)
+        self.client.post('/api/chat/9412', json={'text': 'Здорово'}, headers=th)
+        r = self.client.get(f'/api/chat/9411?after={m["id"]}', headers=ch).json()
+        self.assertEqual([x['text'] for x in r['messages']], ['Здорово'])
+        self.assertTrue(self.client.get('/api/chat/9411', headers=ch).json()['messages'][0]['read'])
+        self.assertEqual(r['peer']['role'], 'trainer')

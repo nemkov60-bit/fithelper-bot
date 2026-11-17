@@ -1,3 +1,5 @@
+import { FONT_SETS, type FontSet } from './fonts';
+
 // Темы оформления. `colors` — изменяемый объект: при смене темы в него копируются цвета выбранной
 // темы, а дерево экранов перерисовывается заново (см. ThemeProvider), поэтому экраны просто читают colors.*
 export type ThemeName = 'classic' | 'men' | 'women' | 'premium' | 'steel' | 'light';
@@ -65,14 +67,10 @@ export const colors: Palette = { ...initial };
 export function applyTheme(name: ThemeName) {
   const { title, hint, ...palette } = THEMES[name];
   Object.assign(colors, palette);
+  Object.assign(fonts, FONT_SETS[name]);
 }
 
-export const fonts = {
-  regular: 'Manrope_400Regular',
-  medium: 'Manrope_500Medium',
-  semibold: 'Manrope_600SemiBold',
-  bold: 'Manrope_700Bold',
-  extrabold: 'Manrope_800ExtraBold',
-};
+// Шрифты текущей темы (изменяемый объект, как colors).
+export const fonts: FontSet = { ...FONT_SETS.classic };
 
 export const radius = { sm: 14, md: 20, lg: 24, xl: 28, pill: 999 };

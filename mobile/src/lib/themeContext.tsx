@@ -2,6 +2,7 @@ import { createContext, Fragment, useCallback, useContext, useEffect, useMemo, u
 
 import { api } from './api';
 import { useAuth } from './auth';
+import { loadThemeFonts } from './fonts';
 import { getItem, setItem } from './storage';
 import { applyTheme, isThemeName, type ThemeName } from './theme';
 
@@ -10,13 +11,18 @@ type ThemeState = { theme: ThemeName; setTheme: (t: ThemeName) => Promise<void> 
 const ThemeContext = createContext<ThemeState | null>(null);
 
 // Тема: выбор хранится на устройстве и в аккаунте (чтобы совпадал в вебе и на телефоне).
-// Если пользователь ещё не выбирал — девушкам «Женский», мужчинам «Мужской», остальным «Классический».
+// По умолчанию — «Неоновый лайм».
 export function ThemeProvider({ children }: { children: ReactNode }) {
   const { me, refresh } = useAuth();
   const [theme, setThemeState] = useState<ThemeName | null>(null);
   const chosen = useRef(false);
 
-  const set = useCallback((t: ThemeName) => {
+  const set = useCallback(async (t: ThemeName) => {
+    try {
+      await loadThemeFonts(t);
+    } catch {
+      // шрифт не загрузился — тема покажется со шрифтами по умолчанию
+    }
     applyTheme(t);
     setThemeState(t);
   }, []);
@@ -38,15 +44,12 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
       if (me.theme !== themeRef.current) set(me.theme);
       setItem(KEY, me.theme);
       chosen.current = true;
-    } else if (!chosen.current) {
-      const byGender: ThemeName = me.profile.gender === 'f' ? 'women' : me.profile.gender === 'm' ? 'men' : 'classic';
-      if (themeRef.current !== byGender) set(byGender);
     }
   }, [me, theme === null, set]);
 
   const setTheme = useCallback(async (t: ThemeName) => {
     chosen.current = true;
-    set(t);
+    await set(t);
     await setItem(KEY, t);
     try {
       await api('/api/me/settings', { method: 'PATCH', body: { theme: t } });

@@ -15,10 +15,10 @@ type TextVariant = 'h1' | 'h2' | 'h3' | 'body' | 'label' | 'small' | 'big';
 
 // Функция, а не константа: цвет берётся из текущей темы.
 const textStyles = (): Record<TextVariant, TextStyle> => ({
-  big: { fontFamily: fonts.extrabold, fontSize: 30, letterSpacing: -0.8, color: colors.text },
-  h1: { fontFamily: fonts.extrabold, fontSize: 28, letterSpacing: -0.6, color: colors.text },
-  h2: { fontFamily: fonts.extrabold, fontSize: 20, letterSpacing: -0.3, color: colors.text },
-  h3: { fontFamily: fonts.extrabold, fontSize: 16, color: colors.text },
+  big: { fontFamily: fonts.heading, fontSize: 30, letterSpacing: fonts.headingSpacing - 0.2, color: colors.text },
+  h1: { fontFamily: fonts.heading, fontSize: 28, letterSpacing: fonts.headingSpacing, color: colors.text },
+  h2: { fontFamily: fonts.title, fontSize: 20, letterSpacing: fonts.headingSpacing / 2, color: colors.text },
+  h3: { fontFamily: fonts.title, fontSize: 16, color: colors.text },
   body: { fontFamily: fonts.semibold, fontSize: 15, color: colors.text, lineHeight: 21 },
   label: { fontFamily: fonts.bold, fontSize: 12, letterSpacing: 0.6, color: colors.muted },
   small: { fontFamily: fonts.semibold, fontSize: 13, color: colors.muted, lineHeight: 18 },

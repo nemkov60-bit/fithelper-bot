@@ -79,7 +79,7 @@ export default function EarningsScreen() {
 
       <Card accent style={{ gap: 4, borderRadius: 28, padding: 20 }}>
         <T v="small" style={{ color: colors.onAccent, fontFamily: fonts.bold }}>Доступно к выплате</T>
-        <T style={{ color: colors.onAccent, fontFamily: fonts.extrabold, fontSize: 38, lineHeight: 44 }}>{rub(b.available)}</T>
+        <T style={{ color: colors.onAccent, fontFamily: fonts.heading, fontSize: 38, lineHeight: 44 }}>{rub(b.available)}</T>
         <T v="small" style={{ color: colors.onAccent }}>Выплата раз в месяц, если набралось от {rub(rules.min_payout)}</T>
       </Card>
       <View style={{ flexDirection: 'row', gap: 10 }}>

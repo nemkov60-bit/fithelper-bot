@@ -4,6 +4,7 @@ import { Pressable, TextInput, View } from 'react-native';
 
 import { Icon } from '../../../components/Icon';
 import { Badge, Button, Card, ErrorBox, IconButton, Loading, Screen, Segmented, Stat, T } from '../../../components/ui';
+import { MeasurementsCard } from '../../../components/Measurements';
 import { api } from '../../../lib/api';
 import { useAuth } from '../../../lib/auth';
 import { colors, fonts } from '../../../lib/theme';
@@ -17,7 +18,6 @@ export default function ClientScreen() {
   const { meta } = useAuth();
   const [c, setC] = useState<ClientCard | null>(null);
   const [error, setError] = useState('');
-  const [draft, setDraft] = useState('');
   const [editing, setEditing] = useState(false);
   const [notice, setNotice] = useState('');
 
@@ -33,12 +33,7 @@ export default function ClientScreen() {
   if (error) return <Screen><ErrorBox message={error} /></Screen>;
   if (!c || !meta) return <Loading />;
 
-  const send = async () => {
-    if (!draft.trim()) return;
-    await api(`/api/trainer/clients/${id}/messages`, { body: { text: draft.trim() } });
-    setDraft('');
-    load();
-  };
+
   const patch = async (body: Record<string, unknown>) => {
     const r = await api<{ changes: string[] }>(`/api/trainer/clients/${id}/program`, { method: 'PATCH', body });
     setNotice(r.changes.length ? `Сохранено: ${r.changes.join('; ')}. Подопечный получил уведомление.` : '');
@@ -143,27 +138,9 @@ export default function ClientScreen() {
         </Card>
       ) : null}
 
-      <Card style={{ gap: 10, borderRadius: 28 }}>
-        <T v="h3">Сообщения</T>
-        {c.messages.length === 0 ? <T v="small">Сообщение придёт подопечному в Telegram.</T> : null}
-        {c.messages.map((m, i) => (
-          <View key={i} style={{
-            maxWidth: '82%', alignSelf: m.mine ? 'flex-end' : 'flex-start', paddingHorizontal: 14, paddingVertical: 10, borderRadius: 18,
-            backgroundColor: m.mine ? colors.accent : colors.surface2,
-          }}>
-            <T style={{ fontSize: 14, color: m.mine ? colors.onAccent : colors.text }}>{m.text}</T>
-          </View>
-        ))}
-        <View style={{ flexDirection: 'row', gap: 8 }}>
-          <TextInput value={draft} onChangeText={setDraft} placeholder="Написать подопечному…" placeholderTextColor={colors.muted}
-            accessibilityLabel="Сообщение подопечному" onSubmitEditing={send}
-            style={{ flex: 1, minWidth: 0, height: 48, borderRadius: 999, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.bg, color: colors.text, paddingHorizontal: 16, fontFamily: fonts.semibold, fontSize: 14 }} />
-          <Pressable accessibilityRole="button" accessibilityLabel="Отправить" onPress={send}
-            style={{ width: 48, height: 48, borderRadius: 24, backgroundColor: colors.accent, alignItems: 'center', justifyContent: 'center' }}>
-            <Icon name="send" size={20} color={colors.onAccent} strokeWidth={2.4} />
-          </Pressable>
-        </View>
-      </Card>
+      <MeasurementsCard data={c.measurements} labels={c.measure_labels} />
+
+      <Button title="Чат с подопечным" icon="send" onPress={() => router.push(`/chat/${c.id}`)} />
       <Badge label={`ID ${c.id}`} tone="dark" />
     </Screen>
   );

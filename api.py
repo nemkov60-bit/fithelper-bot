@@ -304,6 +304,14 @@ class ReviewIn(BaseModel):
     text: str = Field(default='', max_length=1000)
 
 
+class MeasurementsIn(BaseModel):
+    chest: float | None = None
+    waist: float | None = None
+    hips: float | None = None
+    arm: float | None = None
+    thigh: float | None = None
+
+
 class GoalIn(BaseModel):
     goal: int
 
@@ -423,7 +431,7 @@ def create_app(bot=None):
             'cycle': cycle_json(user),
             'program_days': [d.title for d in fb.user_program(user, place)],
             'week': {'done': len(week), 'plan': user['days'], 'strip': week_strip(user['user_id'])},
-            'streak': streak_days(user['user_id']), 'assignments': due,
+            'streak': streak_days(user['user_id']), 'assignments': due, 'hero_url': hero_url(user),
         }
 
     @app.get('/api/program')
@@ -641,7 +649,30 @@ def create_app(bot=None):
             'body_weight': [{'date': b['created_at'][:10], 'weight': b['weight']} for b in fb.body_weights(uid)],
             'target_weight': user.get('target_weight'),
             'week_strip': week_strip(uid),
+            'measurements': fb.measurements_summary(uid),
+            'measure_labels': fb.MEASURES,
         }
+
+    @app.post('/api/measurements')
+    def add_measurements(body: MeasurementsIn, user=Depends(profile_user)):
+        values = {k: v for k, v in body.model_dump().items() if v}
+        if any(not 20 <= v <= 250 for v in values.values()):
+            raise HTTPException(422, 'Объёмы — от 20 до 250 см')
+        if not fb.add_measurements(user['user_id'], values):
+            raise HTTPException(422, 'Укажи хотя бы один объём')
+        return {'measurements': fb.measurements_summary(user['user_id'])}
+
+    @app.get('/api/hero/{gender}.jpg')
+    def hero_photo(gender: str):
+        photo = fb.get_app_photo('home', gender)
+        if not photo:
+            raise HTTPException(404)
+        return Response(photo['data'], media_type=photo['mime'], headers={'Cache-Control': 'public, max-age=86400'})
+
+    def hero_url(user):
+        g = 'f' if user.get('gender') == 'f' else 'm'
+        v = fb.app_photo_version('home', g)
+        return f'/api/hero/{g}.jpg?v={v.replace(":", "")}' if v else None
 
     @app.post('/api/body-weight')
     def body_weight(body: WeightIn, user=Depends(profile_user)):
@@ -753,7 +784,51 @@ def create_app(bot=None):
                 'assignments': [assignment_json(a) for a in fb.client_assignments(uid)],
                 'done': list(reversed(done)),
                 'messages': [{'mine': m['from_id'] == uid, 'text': m['text'], 'at': m['created_at']}
-                             for m in fb.recent_messages(tid, uid, 30)]}
+                             for m in fb.recent_messages(tid, uid, 30)],
+                'unread': fb.unread_count(uid, tid)}
+
+    # ---------- чат тренер ↔ подопечный ----------
+    def chat_peer(user, peer_id):
+        """Собеседник: мой тренер или мой подопечный. Возвращает (peer, роль собеседника)."""
+        peer = fb.get_user(peer_id)
+        if peer and user.get('trainer_id') == peer_id:
+            return peer, 'trainer'
+        if peer and fb.is_trainer(user) and peer.get('trainer_id') == user['user_id']:
+            return peer, 'client'
+        raise HTTPException(404, 'Чат недоступен')
+
+    def message_json(m, uid):
+        return {'id': m['id'], 'mine': m['from_id'] == uid, 'text': m['text'], 'at': m['created_at'],
+                'read': bool(m.get('read_at'))}
+
+    @app.get('/api/chat/{peer_id}')
+    def chat(peer_id: int, after: int = 0, user=Depends(current_user)):
+        uid = user['user_id']
+        peer, role = chat_peer(user, peer_id)
+        fb.mark_read(uid, peer_id)
+        photo = trainer_card(peer)['photo_url'] if role == 'trainer' else None
+        return {'peer': {'id': peer_id, 'name': fb.display_name(peer, 'Тренер' if role == 'trainer' else 'Подопечный'),
+                         'role': role, 'photo_url': photo},
+                'messages': [message_json(m, uid) for m in fb.chat_messages(uid, peer_id, after)]}
+
+    @app.post('/api/chat/{peer_id}')
+    async def chat_send(peer_id: int, body: MessageIn, request: Request, user=Depends(current_user)):
+        uid = user['user_id']
+        peer, role = chat_peer(user, peer_id)
+        text = body.text.strip()
+        if not text:
+            raise HTTPException(422, 'Пустое сообщение')
+        mid = fb.save_message(uid, peer_id, text)
+        bot = request.app.state.bot
+        if bot:
+            if role == 'trainer':
+                await fb.notify(bot, peer_id, f'💬 <b>Сообщение от подопечного {fb.html.escape(fb.display_name(user))}</b>\n\n'
+                                              f'{fb.html.escape(text)}',
+                                fb.kb([[('↩️ Ответить', f'tr:msg:{uid}'), ('👤 Профиль', f'tr:c:{uid}')]]))
+            else:
+                await fb.notify(bot, peer_id, f'💬 <b>Сообщение от тренера {fb.html.escape(fb.display_name(user, ""))}</b>\n\n'
+                                              f'{fb.html.escape(text)}', fb.kb([[('↩️ Ответить', 'cl:msg')]]))
+        return {'message': message_json(fb.chat_messages(uid, peer_id, mid - 1, 1)[0], uid)}
 
     @app.post('/api/coach/messages')
     async def coach_message(body: MessageIn, request: Request, user=Depends(profile_user)):
@@ -901,7 +976,8 @@ def create_app(bot=None):
             week = len(fb.finished_workouts(c['user_id'], since=fb.now() - timedelta(days=7)))
             clients.append({'id': c['user_id'], 'name': fb.display_name(c), 'week': week, 'plan': c.get('days') or 0,
                             'goal': fb.GOALS.get(c.get('goal'), ''), 'subscription': fb.has_subscription(c),
-                            'pending': len(fb.client_assignments(c['user_id']))})
+                            'pending': len(fb.client_assignments(c['user_id'])),
+                            'unread': fb.unread_count(tid, c['user_id'])})
         price = fb.sub_price()
         return {
             'level': {'name': name.split(' ', 1)[-1], 'percent': percent, 'description': desc},
@@ -1027,6 +1103,7 @@ def create_app(bot=None):
             'records': [{'name': fb.EXERCISES[e].name, 'text': fb.fmt_set(w, r, fb.EXERCISES[e].unit), 'date': d}
                         for e, (_, w, r, d) in prs if e in fb.EXERCISES],
             'body_weight': [{'date': b['created_at'][:10], 'weight': b['weight']} for b in fb.body_weights(cid)][-30:],
+            'measurements': fb.measurements_summary(cid), 'measure_labels': fb.MEASURES,
             'assignments': [assignment_json(a) for a in fb.client_assignments(cid)],
             'messages': [{'mine': m['from_id'] == trainer['user_id'], 'text': m['text'], 'at': m['created_at']}
                          for m in fb.recent_messages(trainer['user_id'], cid, 30)],

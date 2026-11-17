@@ -59,7 +59,7 @@ export default function Trainer() {
             <T v="small" style={{ color: colors.onAccent }}>{data.level.description}</T>
           </View>
           <View style={{ alignItems: 'flex-end' }}>
-            <T style={{ color: colors.onAccent, fontFamily: fonts.extrabold, fontSize: 40, lineHeight: 44 }}>{data.level.percent}%</T>
+            <T style={{ color: colors.onAccent, fontFamily: fonts.heading, fontSize: 40, lineHeight: 44 }}>{data.level.percent}%</T>
             <T v="small" style={{ color: colors.onAccent, fontFamily: fonts.bold, fontSize: 12 }}>от подписки</T>
           </View>
         </View>
@@ -179,12 +179,17 @@ export default function Trainer() {
               <T style={{ fontFamily: fonts.bold }}>{c.name}</T>
               <T v="small" style={{ fontSize: 12 }}>{c.subscription ? 'подписка · ' : ''}{c.goal}{c.pending ? ` · назначено ${c.pending}` : ''}</T>
             </View>
+            {c.unread ? (
+              <View style={{ minWidth: 24, height: 24, borderRadius: 12, paddingHorizontal: 6, backgroundColor: colors.accent, alignItems: 'center', justifyContent: 'center' }}>
+                <T style={{ fontSize: 12, fontFamily: fonts.extrabold, color: colors.onAccent }}>{c.unread}</T>
+              </View>
+            ) : null}
             <T style={{ fontFamily: fonts.extrabold }}>{c.week}/{c.plan}</T>
           </Pressable>
           <ProgressBar value={c.plan ? c.week / c.plan : 0} color={c.week === 0 ? colors.orange : colors.accent} />
           <View style={{ flexDirection: 'row', gap: 8 }}>
             <Button title="Назначить" small style={{ flex: 1 }} onPress={() => router.push(`/trainer/assign/${c.id}`)} />
-            <Button title="Открыть" small variant="ghost" style={{ flex: 1 }} onPress={() => router.push(`/trainer/client/${c.id}`)} />
+            <Button title={c.unread ? `Чат (${c.unread})` : 'Чат'} small variant="ghost" style={{ flex: 1 }} onPress={() => router.push(`/chat/${c.id}`)} />
           </View>
         </Card>
       ))}

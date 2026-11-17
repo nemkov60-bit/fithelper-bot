@@ -4,6 +4,7 @@ import { TextInput, View } from 'react-native';
 
 import { Icon } from '../../components/Icon';
 import { LineChart } from '../../components/LineChart';
+import { MeasurementsCard } from '../../components/Measurements';
 import { Badge, Button, Card, ErrorBox, Loading, ProgressBar, Screen, Segmented, Stat, T } from '../../components/ui';
 import { api, type Progress as ProgressData } from '../../lib/api';
 import { colors, fonts } from '../../lib/theme';
@@ -97,6 +98,9 @@ export default function Progress() {
             options={[{ key: '1m', label: '1М' }, { key: '3m', label: '3М' }, { key: '6m', label: '6М' }, { key: 'y', label: 'Год' }]} />
         </Card>
       ) : null}
+
+      <MeasurementsCard data={data.measurements} labels={data.measure_labels} editable
+        onSaved={(measurements) => setData({ ...data, measurements })} />
 
       <View style={{ flexDirection: 'row', gap: 10 }}>
         <Stat value={String(data.month)} label="тренировок за месяц" />

@@ -1,6 +1,6 @@
 import { router, useFocusEffect } from 'expo-router';
 import { useCallback, useState } from 'react';
-import { Alert, Platform, Pressable, TextInput, View } from 'react-native';
+import { Alert, Platform, Pressable, View } from 'react-native';
 
 import { Icon } from '../../components/Icon';
 import { Stars } from '../../components/Stars';
@@ -13,8 +13,6 @@ export default function Coach() {
   const [data, setData] = useState<CoachData | null>(null);
   const [error, setError] = useState('');
   const [tab, setTab] = useState<'up' | 'done'>('up');
-  const [draft, setDraft] = useState('');
-  const [sending, setSending] = useState(false);
 
   const load = useCallback(async () => {
     setError('');
@@ -56,19 +54,7 @@ export default function Coach() {
   }
 
   const list = tab === 'up' ? data.assignments : data.done;
-
-  const send = async () => {
-    const text = draft.trim();
-    if (!text) return;
-    setSending(true);
-    try {
-      await api('/api/coach/messages', { body: { text } });
-      setDraft('');
-      await load();
-    } finally {
-      setSending(false);
-    }
-  };
+  const last = data.messages[data.messages.length - 1];
 
   return (
     <Screen>
@@ -86,6 +72,25 @@ export default function Coach() {
           <Button title="Оценить" small onPress={() => router.push(`/trainers/${data.trainer!.id}`)} />
         </Card>
       ) : null}
+
+      <Pressable accessibilityRole="button" accessibilityLabel="Чат с тренером" onPress={() => router.push(`/chat/${data.trainer!.id}`)}>
+        <Card style={{ flexDirection: 'row', alignItems: 'center', gap: 14, borderRadius: 24, borderColor: data.unread ? colors.accent : colors.border }}>
+          <View style={{ width: 48, height: 48, borderRadius: 24, backgroundColor: colors.surface2, alignItems: 'center', justifyContent: 'center' }}>
+            <Icon name="send" size={22} color={colors.accent} />
+          </View>
+          <View style={{ flex: 1, gap: 3 }}>
+            <T v="h3">Чат с тренером</T>
+            <T v="small" numberOfLines={1}>
+              {last ? `${last.mine ? 'Ты: ' : ''}${last.text}` : 'Задай вопрос о технике, питании или самочувствии'}
+            </T>
+          </View>
+          {data.unread ? (
+            <View style={{ minWidth: 26, height: 26, borderRadius: 13, paddingHorizontal: 7, backgroundColor: colors.accent, alignItems: 'center', justifyContent: 'center' }}>
+              <T style={{ fontSize: 13, fontFamily: fonts.extrabold, color: colors.onAccent }}>{data.unread}</T>
+            </View>
+          ) : <Icon name="arrow" size={20} color={colors.muted} />}
+        </Card>
+      </Pressable>
 
       <Segmented label="Тренировки" value={tab} onChange={setTab}
         options={[{ key: 'up', label: 'Назначено' }, { key: 'done', label: 'Выполнено' }]} />
@@ -115,28 +120,6 @@ export default function Coach() {
         </Card>
       ))}
 
-      <Card style={{ gap: 10, borderRadius: 28 }}>
-        <T v="h3">Сообщения</T>
-        {data.messages.length === 0 ? <T v="small">Напиши тренеру — он получит сообщение в Telegram.</T> : null}
-        {data.messages.map((m, i) => (
-          <View key={i} style={{
-            maxWidth: '82%', alignSelf: m.mine ? 'flex-end' : 'flex-start', paddingHorizontal: 14, paddingVertical: 10,
-            borderRadius: 18, backgroundColor: m.mine ? colors.accent : colors.surface2,
-            borderBottomRightRadius: m.mine ? 6 : 18, borderBottomLeftRadius: m.mine ? 18 : 6,
-          }}>
-            <T style={{ fontSize: 14, color: m.mine ? colors.onAccent : colors.text }}>{m.text}</T>
-          </View>
-        ))}
-        <View style={{ flexDirection: 'row', gap: 8, marginTop: 4 }}>
-          <TextInput value={draft} onChangeText={setDraft} placeholder="Написать тренеру…" placeholderTextColor={colors.muted}
-            accessibilityLabel="Сообщение тренеру" onSubmitEditing={send}
-            style={{ flex: 1, minWidth: 0, height: 48, borderRadius: 999, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.bg, color: colors.text, paddingHorizontal: 16, fontFamily: fonts.semibold, fontSize: 14 }} />
-          <Pressable accessibilityRole="button" accessibilityLabel="Отправить" onPress={send} disabled={sending}
-            style={{ width: 48, height: 48, borderRadius: 24, backgroundColor: colors.accent, alignItems: 'center', justifyContent: 'center', opacity: sending ? 0.6 : 1 }}>
-            <Icon name="send" size={20} color={colors.onAccent} strokeWidth={2.4} />
-          </Pressable>
-        </View>
-      </Card>
       <Button title="Отключиться от тренера" variant="ghost" small onPress={() => confirmLeave(async () => {
         await api('/api/coach/leave', { method: 'POST' });
         await load();

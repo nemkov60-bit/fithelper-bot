@@ -139,6 +139,7 @@ export type Today = {
   week: { done: number; plan: number; strip: WeekDay[] };
   streak: number;
   assignments: Assignment[];
+  hero_url: string | null;
 };
 
 export type CardioInfo = {
@@ -163,7 +164,17 @@ export type Progress = {
   body_weight: { date: string; weight: number }[];
   target_weight: number | null;
   week_strip: WeekDay[];
+  measurements: Measurements;
+  measure_labels: Record<string, string>;
 };
+
+export type Measurement = {
+  value: number; date: string; prev_delta: number | null; total_delta: number | null; history: { date: string; value: number }[];
+};
+export type Measurements = Record<string, Measurement>;
+
+export type ChatMessage = { id: number; mine: boolean; text: string; at: string; read: boolean };
+export type Chat = { peer: { id: number; name: string; role: 'trainer' | 'client'; photo_url: string | null }; messages: ChatMessage[] };
 
 export type Exercise = PlannedExercise & {
   frames: number;
@@ -179,6 +190,7 @@ export type Coach = {
   assignments: Assignment[];
   done: Assignment[];
   messages: { mine: boolean; text: string; at: string }[];
+  unread?: number;
 };
 
 export type HistoryItem = {
