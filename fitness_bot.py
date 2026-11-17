@@ -76,7 +76,7 @@ TZ_NAME = os.environ.get('FITNESS_TZ', 'Europe/Moscow')
 log = logging.getLogger('fitness_bot')
 
 # Версия кода: видна в «🛠 Админ» и в логах запуска — по ней видно, обновился ли бот на хостинге.
-BOT_VERSION = '2026-11-16 · кабинет тренера'
+BOT_VERSION = '2026-11-17 · API приложения'
 
 
 def now():
@@ -752,6 +752,10 @@ def init_db():
             user_id INTEGER, exercise_id TEXT, target REAL, PRIMARY KEY(user_id, exercise_id));
         CREATE TABLE IF NOT EXISTS cycle_log(
             user_id INTEGER, start_date TEXT, PRIMARY KEY(user_id, start_date));
+        CREATE TABLE IF NOT EXISTS login_codes(
+            code TEXT PRIMARY KEY, user_id INTEGER, created_at TEXT);
+        CREATE TABLE IF NOT EXISTS api_sessions(
+            token_hash TEXT PRIMARY KEY, user_id INTEGER, created_at TEXT, last_seen TEXT);
         CREATE TABLE IF NOT EXISTS ref_links(
             code TEXT PRIMARY KEY, trainer_id INTEGER, label TEXT, created_at TEXT);
         CREATE TABLE IF NOT EXISTS trainer_invites(
@@ -1910,6 +1914,9 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     uid = update.effective_user.id
     context.user_data.pop('await', None)
     payload = (context.args or [''])[0] if getattr(context, 'args', None) else ''
+    if payload.startswith('login_'):
+        await handle_app_login(update, context, payload[6:])
+        return
     if payload.startswith('coach_'):
         await handle_coach_invite(update, context, payload[6:])
         if not profile_complete(get_user(uid)):
@@ -4002,12 +4009,54 @@ def build_app(token):
     return app
 
 
+async def handle_app_login(update, context, code):
+    """Вход в мобильное приложение: пользователь открыл ссылку t.me/<бот>?start=login_<код>."""
+    try:
+        import api
+    except ImportError:  # pragma: no cover
+        from fitness_bot import api
+    uid = update.effective_user.id
+    ensure_user_row(uid, update.effective_user.first_name or '')
+    if api.confirm_login_code(code, uid):
+        await update.effective_message.reply_text(
+            '✅ Вход в приложение FitHelper подтверждён — вернись в приложение.\n'
+            'Тренировки, программа и прогресс общие для бота и приложения.')
+    else:
+        await update.effective_message.reply_text('Ссылка для входа устарела. Нажми «Войти через Telegram» '
+                                                  'в приложении ещё раз.')
+
+
+async def run_bot_and_api(token):
+    """Бот и HTTP API приложения в одном процессе: общая база и аккаунты."""
+    import uvicorn
+    try:
+        import api
+    except ImportError:  # pragma: no cover
+        from fitness_bot import api
+    application = build_app(token)
+    port = int(os.environ.get('PORT') or os.environ.get('FITNESS_API_PORT') or 8080)
+    server = uvicorn.Server(uvicorn.Config(api.create_app(application.bot), host='0.0.0.0', port=port,
+                                           log_level='warning', proxy_headers=True, forwarded_allow_ips='*'))
+    async with application:
+        await application.start()
+        await application.updater.start_polling(allowed_updates=Update.ALL_TYPES)
+        print(f'Фитнес-бот запущен. Версия: {BOT_VERSION}. Данные: {DATA_DIR}. API приложения: порт {port}', flush=True)
+        try:
+            await server.serve()
+        finally:
+            await application.updater.stop()
+            await application.stop()
+
+
 def main():
     logging.basicConfig(level=logging.INFO, format='%(asctime)s %(levelname)s %(name)s: %(message)s')
     logging.getLogger('httpx').setLevel(logging.WARNING)
     token = (os.environ.get('FITNESS_BOT_TOKEN') or os.environ.get('BOT_TOKEN') or '').strip()
     if not token:
         print('Не задан FITNESS_BOT_TOKEN. Укажи его в переменных окружения или в fitness_bot/.env', flush=True)
+        return
+    if os.environ.get('FITNESS_API', '1') != '0':
+        asyncio.run(run_bot_and_api(token))
         return
     app = build_app(token)
     print(f'Фитнес-бот запущен. Версия: {BOT_VERSION}. Данные: {DATA_DIR}', flush=True)

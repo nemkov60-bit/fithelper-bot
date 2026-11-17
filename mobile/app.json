@@ -1,0 +1,48 @@
+{
+  "expo": {
+    "name": "FitHelper",
+    "slug": "fithelper",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "dark",
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "app.fithelper",
+      "config": {
+        "usesNonExemptEncryption": false
+      }
+    },
+    "android": {
+      "adaptiveIcon": {
+        "backgroundColor": "#0E0F0F",
+        "foregroundImage": "./assets/android-icon-foreground.png",
+        "backgroundImage": "./assets/android-icon-background.png",
+        "monochromeImage": "./assets/android-icon-monochrome.png"
+      },
+      "predictiveBackGestureEnabled": false,
+      "package": "app.fithelper"
+    },
+    "web": {
+      "favicon": "./assets/favicon.png",
+      "output": "single",
+      "bundler": "metro",
+      "name": "FitHelper",
+      "shortName": "FitHelper",
+      "themeColor": "#0E0F0F",
+      "backgroundColor": "#0E0F0F",
+      "display": "standalone"
+    },
+    "plugins": [
+      "expo-router",
+      "expo-secure-store",
+      "expo-web-browser",
+      "expo-font"
+    ],
+    "scheme": "fithelper",
+    "backgroundColor": "#0E0F0F",
+    "splash": {
+      "backgroundColor": "#0E0F0F"
+    }
+  }
+}
