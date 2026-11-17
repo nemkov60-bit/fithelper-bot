@@ -167,3 +167,57 @@ class TrainerApiTests(unittest.TestCase):
         self.assertEqual(fb.get_assignment(aid)['status'], 'cancelled')
         cat = self.client.get('/api/trainer/catalog', headers=h).json()
         self.assertGreater(len(cat['exercises']), 80)
+
+
+class MarketplaceTests(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls.client = TestClient(api.create_app())
+
+    def h(self, uid, name):
+        fb.ensure_user_row(uid, name)
+        return {'Authorization': f'Bearer {api.create_session(uid)}'}
+
+    def test_catalog_request_review(self):
+        import base64
+        th = self.h(6001, 'Мария Тренер')
+        fb.make_trainer(6001)
+        # Без заполненного профиля тренера нет в каталоге.
+        ch = self.h(6002, 'Клиент Олег')
+        self.client.put('/api/me/profile', json=PROFILE, headers=ch)
+        self.assertEqual(self.client.get('/api/trainers', headers=ch).json()['trainers'], [])
+        prof = {'bio': 'Тренер по силовым, 8 лет стажа', 'specializations': ['strength', 'mass', 'bad'],
+                'experience_years': 8, 'certificates': 'FPA', 'city': 'Москва', 'format': 'both', 'max_clients': 1}
+        r = self.client.put('/api/trainer/profile', json=prof, headers=th).json()
+        self.assertEqual(r['specializations'], ['strength', 'mass'])
+        png = base64.b64encode(b'\x89PNG\r\n\x1a\n' + b'0' * 50).decode()
+        self.assertIn('/photo?v=', self.client.post('/api/trainer/photo', json={'data': png, 'mime': 'image/png'}, headers=th).json()['photo_url'])
+        cat = self.client.get('/api/trainers?spec=strength', headers=ch).json()
+        self.assertEqual(cat['trainers'][0]['name'], 'Мария Тренер')
+        self.assertEqual(self.client.get('/api/trainers?spec=women', headers=ch).json()['trainers'], [])
+        self.assertEqual(self.client.get('/api/trainers/6001/photo').status_code, 200)
+        # Заявка и принятие.
+        rid = self.client.post('/api/trainers/6001/requests', json={'message': 'Хочу силу'}, headers=ch).json()['id']
+        self.assertEqual(self.client.get('/api/trainer', headers=th).json()['requests'][0]['message'], 'Хочу силу')
+        self.assertEqual(self.client.get('/api/coach', headers=ch).json()['pending'][0]['trainer_id'], 6001)
+        res = self.client.post(f'/api/trainer/requests/{rid}/accept', headers=th).json()['result']
+        self.assertIn('подопечный', res)
+        self.assertEqual(fb.get_user(6002)['trainer_id'], 6001)
+        # Лимит мест — 1: следующий клиент не может подать заявку.
+        ch2 = self.h(6003, 'Клиент Ира')
+        self.client.put('/api/me/profile', json=PROFILE, headers=ch2)
+        self.assertEqual(self.client.post('/api/trainers/6001/requests', json={}, headers=ch2).status_code, 409)
+        # Отзыв — только после 2 недель или 3 тренировок.
+        self.assertEqual(self.client.post('/api/trainers/6001/review', json={'rating': 5}, headers=ch).status_code, 403)
+        with fb.connect() as c:
+            c.execute("UPDATE coaching SET started_at='2026-01-01T00:00:00' WHERE client_id=6002")
+        self.assertTrue(self.client.get('/api/coach', headers=ch).json()['can_review'])
+        r = self.client.post('/api/trainers/6001/review', json={'rating': 4, 'text': 'Отличный тренер'}, headers=ch).json()
+        self.assertEqual((r['rating'], r['reviews']), (4.0, 1))
+        detail = self.client.get('/api/trainers/6001', headers=ch2).json()
+        self.assertEqual(detail['reviews_list'][0]['text'], 'Отличный тренер')
+        self.assertFalse(detail['has_room'])
+        # Отключение освобождает место.
+        self.client.post('/api/coach/leave', headers=ch)
+        self.assertIsNone(fb.get_user(6002)['trainer_id'])
+        self.assertTrue(self.client.get('/api/trainers/6001', headers=ch2).json()['has_room'])

@@ -3,8 +3,10 @@ import { router, useFocusEffect } from 'expo-router';
 import { useCallback, useState } from 'react';
 import { Pressable, TextInput, View } from 'react-native';
 
+import { Stars } from '../../components/Stars';
 import { Button, Card, ErrorBox, Loading, ProgressBar, Screen, Stat, T } from '../../components/ui';
 import { api } from '../../lib/api';
+import { plural, REVIEWS } from '../../lib/format';
 import { colors, fonts } from '../../lib/theme';
 import type { TrainerHome } from '../../lib/trainer';
 
@@ -86,6 +88,34 @@ export default function Trainer() {
           ))}
         </Card>
       ) : null}
+
+      <Pressable accessibilityRole="button" onPress={() => router.push('/trainer/profile')}>
+        <Card style={{ flexDirection: 'row', alignItems: 'center', gap: 12, borderColor: data.profile_listed ? colors.border : colors.orange }}>
+          <View style={{ flex: 1, gap: 4 }}>
+            <T v="h3">Профиль в каталоге</T>
+            {data.profile_listed ? (
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                {data.rating.value ? <Stars value={data.rating.value} size={14} /> : null}
+                <T v="small">{data.rating.value ? `${String(data.rating.value).replace('.', ',')} · ${data.rating.count} ${plural(data.rating.count, REVIEWS)}` : 'Отзывов пока нет'}</T>
+              </View>
+            ) : <T v="small" style={{ color: colors.orange }}>Заполни «О себе», чтобы попасть в каталог тренеров</T>}
+          </View>
+          <T v="small" style={{ color: colors.accent }}>Изменить</T>
+        </Card>
+      </Pressable>
+
+      {data.requests.length ? <T v="h2">Заявки ({data.requests.length})</T> : null}
+      {data.requests.map((r) => (
+        <Card key={r.id} style={{ gap: 8, borderColor: colors.accent }}>
+          <T style={{ fontFamily: fonts.extrabold }}>{r.name}</T>
+          <T v="small">{r.goal} · {r.date.split('-').reverse().join('.')}</T>
+          {r.message ? <T v="small" style={{ color: colors.soft }}>«{r.message}»</T> : null}
+          <View style={{ flexDirection: 'row', gap: 8 }}>
+            <Button title="Принять" small style={{ flex: 1 }} onPress={async () => { await api(`/api/trainer/requests/${r.id}/accept`, { method: 'POST' }); load(); }} />
+            <Button title="Отклонить" small variant="ghost" style={{ flex: 1 }} onPress={async () => { await api(`/api/trainer/requests/${r.id}/reject`, { method: 'POST' }); load(); }} />
+          </View>
+        </Card>
+      ))}
 
       <View style={{ flexDirection: 'row', gap: 10 }}>
         <Stat value={String(data.subscribers)} label="подписчиков" />

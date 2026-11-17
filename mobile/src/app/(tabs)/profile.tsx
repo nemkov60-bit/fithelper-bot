@@ -81,6 +81,14 @@ export default function Profile() {
         ) : null}
       </Card>
 
+      {!me.trainer && !me.is_trainer ? (
+        <Card accent style={{ gap: 10 }}>
+          <T v="h3" style={{ color: colors.onAccent }}>Улучшить: занятия с тренером</T>
+          <T v="small" style={{ color: colors.onAccent }}>Тариф COACH — программа и контроль от персонального тренера. Выбери тренера по рейтингу.</T>
+          <Button title="Выбрать тренера" variant="dark" small onPress={() => router.push('/trainers')} />
+        </Card>
+      ) : null}
+
       <Card style={{ gap: 8 }}>
         <T v="h3">Подписка</T>
         <T v="small">

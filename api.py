@@ -5,6 +5,7 @@
 
 Локальный запуск без бота (для разработки):  python api.py
 """
+import base64
 import hashlib
 import os
 import secrets
@@ -270,6 +271,31 @@ class AssignmentIn(BaseModel):
     title: str = Field(min_length=1, max_length=80)
     note: str = Field(default='', max_length=500)
     items: list[ItemIn] = Field(min_length=1, max_length=20)
+
+
+class TrainerProfileIn(BaseModel):
+    bio: str = Field(default='', max_length=1500)
+    specializations: list[str] = Field(default_factory=list, max_length=9)
+    experience_years: int | None = Field(default=None, ge=0, le=60)
+    certificates: str = Field(default='', max_length=1000)
+    city: str = Field(default='', max_length=60)
+    format: str = 'both'
+    max_clients: int | None = Field(default=None, ge=1, le=500)
+    listed: bool = True
+
+
+class PhotoIn(BaseModel):
+    data: str = Field(max_length=4_000_000)
+    mime: str = 'image/jpeg'
+
+
+class RequestIn(BaseModel):
+    message: str = Field(default='', max_length=500)
+
+
+class ReviewIn(BaseModel):
+    rating: int = Field(ge=1, le=5)
+    text: str = Field(default='', max_length=1000)
 
 
 class ProgramPatch(BaseModel):
@@ -629,11 +655,19 @@ def create_app(bot=None):
     @app.get('/api/coach')
     def coach(user=Depends(profile_user)):
         if not user.get('trainer_id'):
-            return {'trainer': None, 'assignments': [], 'done': [], 'messages': []}
+            reqs = fb.pending_requests(client_id=user['user_id'])
+            return {'trainer': None, 'assignments': [], 'done': [], 'messages': [],
+                    'pending': [{'id': r['id'], 'trainer_id': r['trainer_id'],
+                                 'trainer_name': fb.display_name(fb.get_user(r['trainer_id']), 'Тренер')} for r in reqs]}
         uid, tid = user['user_id'], user['trainer_id']
         trainer = fb.get_user(tid)
         done = [assignment_json(a) for a in fb.client_assignments(uid, status='done')][-10:]
-        return {'trainer': {'id': tid, 'name': fb.display_name(trainer, 'Тренер')},
+        my_review = next((r for r in fb.trainer_reviews(tid, 1000) if r['client_id'] == uid), None)
+        return {'trainer': {'id': tid, 'name': fb.display_name(trainer, 'Тренер'), 'rating': fb.trainer_rating(tid)[0],
+                            'photo_url': trainer_card(trainer)['photo_url']},
+                'can_review': fb.can_review(uid, tid),
+                'my_review': {'rating': my_review['rating'], 'text': my_review['text'] or ''} if my_review else None,
+                'pending': [],
                 'assignments': [assignment_json(a) for a in fb.client_assignments(uid)],
                 'done': list(reversed(done)),
                 'messages': [{'mine': m['from_id'] == uid, 'text': m['text'], 'at': m['created_at']}
@@ -650,6 +684,112 @@ def create_app(bot=None):
                             f'💬 <b>Сообщение от подопечного {fb.html.escape(fb.display_name(user))}</b> (из приложения)\n\n'
                             f'{fb.html.escape(body.text.strip())}',
                             fb.kb([[('↩️ Ответить', f'tr:msg:{user["user_id"]}'), ('👤 Профиль', f'tr:c:{user["user_id"]}')]]))
+        return {'ok': True}
+
+    # ---------- каталог тренеров ----------
+    def trainer_card(t):
+        tid = t['user_id']
+        prof = fb.get_trainer_profile(tid)
+        rating, count = fb.trainer_rating(tid)
+        return {
+            'id': tid, 'name': fb.display_name(t, 'Тренер'), 'rating': rating, 'reviews': count,
+            'clients': len(fb.trainer_clients(tid)), 'has_room': fb.trainer_has_room(tid),
+            'specializations': [{'key': k, 'label': fb.SPECIALIZATIONS[k]} for k in prof['specializations']],
+            'experience_years': prof.get('experience_years'), 'city': prof.get('city') or '',
+            'format': prof.get('format') or 'both', 'format_label': fb.TRAINER_FORMATS.get(prof.get('format') or 'both', ''),
+            'bio': prof.get('bio') or '', 'certificates': prof.get('certificates') or '',
+            'photo_url': f'/api/trainers/{tid}/photo?v={prof["photo_version"]}' if prof['photo_version'] else None,
+        }
+
+    def listed_trainers():
+        with fb.connect() as c:
+            rows = c.execute('''SELECT u.* FROM users u JOIN trainer_profiles p ON p.user_id=u.user_id
+                                WHERE u.is_trainer=1 AND p.listed=1 AND COALESCE(p.bio, '')<>'' ''').fetchall()
+        return [dict(r) for r in rows]
+
+    @app.get('/api/trainers')
+    def trainers(spec: str = '', format: str = '', city: str = '', user=Depends(current_user)):
+        cards = [trainer_card(t) for t in listed_trainers() if t['user_id'] != user['user_id']]
+        if spec:
+            cards = [c for c in cards if any(x['key'] == spec for x in c['specializations'])]
+        if format in ('online', 'offline'):
+            cards = [c for c in cards if c['format'] in (format, 'both')]
+        if city.strip():
+            cards = [c for c in cards if city.strip().lower() in c['city'].lower() or c['format'] != 'offline']
+
+        def score(c):  # байесовское среднее: мало отзывов — ближе к 4.0
+            return ((c['rating'] or 0) * c['reviews'] + 4.0 * 3) / (c['reviews'] + 3)
+        cards.sort(key=lambda c: (c['has_room'], score(c), c['reviews']), reverse=True)
+        return {'trainers': cards, 'specializations': fb.SPECIALIZATIONS, 'formats': fb.TRAINER_FORMATS,
+                'my_requests': [r['trainer_id'] for r in fb.pending_requests(client_id=user['user_id'])]}
+
+    @app.get('/api/trainers/{tid}')
+    def trainer_detail(tid: int, user=Depends(current_user)):
+        t = fb.get_user(tid)
+        if not fb.is_trainer(t):
+            raise HTTPException(404, 'Тренер не найден')
+        uid = user['user_id']
+        mine = next((r for r in fb.pending_requests(client_id=uid) if r['trainer_id'] == tid), None)
+        my_review = next((r for r in fb.trainer_reviews(tid, 1000) if r['client_id'] == uid), None)
+        return {**trainer_card(t),
+                'reviews_list': [{'name': (r['name'] or 'Пользователь').split(' ')[0], 'rating': r['rating'], 'text': r['text'] or '',
+                                  'date': r['updated_at'][:10]} for r in fb.trainer_reviews(tid)],
+                'is_my_trainer': user.get('trainer_id') == tid, 'has_trainer': bool(user.get('trainer_id')),
+                'my_request': {'id': mine['id'], 'status': mine['status']} if mine else None,
+                'can_review': fb.can_review(uid, tid),
+                'my_review': {'rating': my_review['rating'], 'text': my_review['text'] or ''} if my_review else None}
+
+    @app.get('/api/trainers/{tid}/photo')
+    def trainer_photo(tid: int):
+        data, mime = fb.get_trainer_photo(tid)
+        if not data:
+            raise HTTPException(404)
+        return Response(data, media_type=mime or 'image/jpeg', headers={'Cache-Control': 'public, max-age=604800'})
+
+    @app.post('/api/trainers/{tid}/requests')
+    async def request_trainer(tid: int, body: RequestIn, user=Depends(profile_user)):
+        t = fb.get_user(tid)
+        if not fb.is_trainer(t) or tid == user['user_id']:
+            raise HTTPException(404, 'Тренер не найден')
+        if user.get('trainer_id'):
+            raise HTTPException(409, 'У тебя уже есть тренер. Сначала отключись от него в разделе «Тренер».')
+        if not fb.trainer_has_room(tid):
+            raise HTTPException(409, 'У тренера сейчас нет свободных мест')
+        rid = fb.create_coach_request(user['user_id'], tid, body.message.strip())
+        if bot:
+            await fb.notify(bot, tid, fb.request_text(fb.get_coach_request(rid)),
+                            fb.kb([[('✅ Принять', f'tr:rq:a:{rid}'), ('❌ Отклонить', f'tr:rq:r:{rid}')]]))
+        return {'id': rid, 'status': 'pending'}
+
+    @app.delete('/api/requests/{rid}')
+    def cancel_request(rid: int, user=Depends(current_user)):
+        r = fb.get_coach_request(rid)
+        if not r or r['client_id'] != user['user_id'] or r['status'] != 'pending':
+            raise HTTPException(404, 'Заявка не найдена')
+        fb.set_request_status(rid, 'cancelled')
+        return {'ok': True}
+
+    @app.post('/api/trainers/{tid}/review')
+    def review_trainer(tid: int, body: ReviewIn, user=Depends(profile_user)):
+        if not fb.is_trainer(fb.get_user(tid)):
+            raise HTTPException(404, 'Тренер не найден')
+        if not fb.can_review(user['user_id'], tid):
+            raise HTTPException(403, f'Оценить тренера можно после {fb.REVIEW_MIN_WORKOUTS} тренировок от него '
+                                     f'или {fb.REVIEW_MIN_DAYS} дней занятий вместе')
+        fb.save_review(tid, user['user_id'], body.rating, body.text.strip())
+        rating, count = fb.trainer_rating(tid)
+        return {'rating': rating, 'reviews': count}
+
+    @app.post('/api/coach/leave')
+    async def leave_coach(user=Depends(current_user)):
+        tid = user.get('trainer_id')
+        if not tid:
+            return {'ok': True}
+        fb.end_coaching(user['user_id'])
+        for a in fb.client_assignments(user['user_id']):
+            fb.set_assignment_status(a['id'], 'cancelled')
+        if bot:
+            await fb.notify(bot, tid, f'👋 {fb.html.escape(fb.display_name(user))} отключился от тренировок с тобой.')
         return {'ok': True}
 
     # ---------- кабинет тренера ----------
@@ -692,7 +832,46 @@ def create_app(bot=None):
             'links': [{'code': l['code'], 'label': l['label'], 'joined': l['joined'], 'subs': l['subs'],
                        'url': f'https://t.me/{bot_username()}?start=ref_{l["code"]}'} for l in fb.trainer_links(tid)],
             'clients': clients,
+            'rating': dict(zip(('value', 'count'), fb.trainer_rating(tid))),
+            'profile_listed': bool(fb.get_trainer_profile(tid).get('bio')) and bool(fb.get_trainer_profile(tid).get('listed')),
+            'requests': [{'id': r['id'], 'name': fb.display_name(fb.get_user(r['client_id'])), 'message': r['message'] or '',
+                          'goal': fb.GOALS.get(fb.get_user(r['client_id']).get('goal'), ''), 'date': r['created_at'][:10]}
+                         for r in fb.pending_requests(tid=tid)],
         }
+
+    @app.get('/api/trainer/profile')
+    def trainer_profile(trainer=Depends(trainer_user)):
+        prof = fb.get_trainer_profile(trainer['user_id'])
+        return {**{k: prof.get(k) for k in fb.TRAINER_PROFILE_FIELDS}, 'listed': bool(prof.get('listed')),
+                'photo_url': trainer_card(trainer)['photo_url'], 'specializations_all': fb.SPECIALIZATIONS,
+                'formats': fb.TRAINER_FORMATS}
+
+    @app.put('/api/trainer/profile')
+    def put_trainer_profile(body: TrainerProfileIn, trainer=Depends(trainer_user)):
+        if body.format not in fb.TRAINER_FORMATS:
+            raise HTTPException(422, 'Неверный формат')
+        fb.save_trainer_profile(trainer['user_id'], body.model_dump())
+        return trainer_profile(trainer)
+
+    @app.post('/api/trainer/photo')
+    def put_trainer_photo(body: PhotoIn, trainer=Depends(trainer_user)):
+        if body.mime not in ('image/jpeg', 'image/png', 'image/webp'):
+            raise HTTPException(422, 'Нужна картинка JPG, PNG или WEBP')
+        raw = body.data.split(',', 1)[-1]
+        try:
+            data = base64.b64decode(raw, validate=True)
+        except ValueError:
+            raise HTTPException(422, 'Не удалось прочитать картинку')
+        if len(data) > 2_500_000:
+            raise HTTPException(413, 'Фото больше 2,5 МБ')
+        fb.save_trainer_photo(trainer['user_id'], data, body.mime)
+        return {'photo_url': trainer_card(trainer)['photo_url']}
+
+    @app.post('/api/trainer/requests/{rid}/{action}')
+    async def decide_request(rid: int, action: str, trainer=Depends(trainer_user)):
+        if action not in ('accept', 'reject'):
+            raise HTTPException(404)
+        return {'result': await fb.decide_coach_request(bot, trainer, rid, action == 'accept')}
 
     @app.post('/api/trainer/links')
     def trainer_new_link(body: LinkIn, trainer=Depends(trainer_user)):

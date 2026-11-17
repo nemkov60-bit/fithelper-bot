@@ -171,7 +171,10 @@ export type Exercise = PlannedExercise & {
 };
 
 export type Coach = {
-  trainer: { id: number; name: string } | null;
+  trainer: { id: number; name: string; rating: number | null; photo_url: string | null } | null;
+  can_review?: boolean;
+  my_review?: { rating: number; text: string } | null;
+  pending: { id: number; trainer_id: number; trainer_name: string }[];
   assignments: Assignment[];
   done: Assignment[];
   messages: { mine: boolean; text: string; at: string }[];

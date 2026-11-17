@@ -752,6 +752,18 @@ def init_db():
             user_id INTEGER, exercise_id TEXT, target REAL, PRIMARY KEY(user_id, exercise_id));
         CREATE TABLE IF NOT EXISTS cycle_log(
             user_id INTEGER, start_date TEXT, PRIMARY KEY(user_id, start_date));
+        CREATE TABLE IF NOT EXISTS trainer_profiles(
+            user_id INTEGER PRIMARY KEY, bio TEXT, specializations TEXT, experience_years INTEGER, certificates TEXT,
+            city TEXT, format TEXT, max_clients INTEGER, listed INTEGER DEFAULT 1, updated_at TEXT);
+        CREATE TABLE IF NOT EXISTS trainer_photos(user_id INTEGER PRIMARY KEY, data BLOB, mime TEXT, updated_at TEXT);
+        CREATE TABLE IF NOT EXISTS reviews(
+            trainer_id INTEGER, client_id INTEGER, rating INTEGER, text TEXT, created_at TEXT, updated_at TEXT,
+            PRIMARY KEY(trainer_id, client_id));
+        CREATE TABLE IF NOT EXISTS coach_requests(
+            id INTEGER PRIMARY KEY AUTOINCREMENT, client_id INTEGER, trainer_id INTEGER, message TEXT,
+            status TEXT DEFAULT 'pending', created_at TEXT, decided_at TEXT);
+        CREATE TABLE IF NOT EXISTS coaching(
+            id INTEGER PRIMARY KEY AUTOINCREMENT, trainer_id INTEGER, client_id INTEGER, started_at TEXT, ended_at TEXT);
         CREATE TABLE IF NOT EXISTS login_codes(
             code TEXT PRIMARY KEY, user_id INTEGER, created_at TEXT);
         CREATE TABLE IF NOT EXISTS api_sessions(
@@ -3219,6 +3231,191 @@ def set_assignment_status(aid, status, wid=None):
         c.execute('UPDATE assignments SET status=?, workout_id=COALESCE(?, workout_id) WHERE id=?', (status, wid, aid))
 
 
+# ---------- Каталог тренеров: профили, заявки, отзывы ----------
+
+SPECIALIZATIONS = {
+    'mass': 'Набор массы', 'fat_loss': 'Похудение', 'strength': 'Сила', 'fit': 'Тонус и здоровье',
+    'beginners': 'Для новичков', 'women': 'Для женщин', 'mature': '40+ и 60+', 'rehab': 'Спина и реабилитация',
+    'home': 'Тренировки дома',
+}
+TRAINER_FORMATS = {'online': 'Онлайн', 'offline': 'В зале', 'both': 'Онлайн и в зале'}
+REVIEW_MIN_WORKOUTS = 3
+REVIEW_MIN_DAYS = 14
+TRAINER_PROFILE_FIELDS = ('bio', 'specializations', 'experience_years', 'certificates', 'city', 'format',
+                          'max_clients', 'listed')
+
+
+def start_coaching(client_id, trainer_id):
+    """Подопечный подключился к тренеру (по ссылке или через принятую заявку)."""
+    stamp = now().isoformat(timespec='seconds')
+    set_user_field(client_id, 'trainer_id', trainer_id)
+    with connect() as c:
+        c.execute('UPDATE coaching SET ended_at=? WHERE client_id=? AND ended_at IS NULL', (stamp, client_id))
+        c.execute('INSERT INTO coaching(trainer_id, client_id, started_at) VALUES(?,?,?)', (trainer_id, client_id, stamp))
+        c.execute("UPDATE coach_requests SET status='cancelled', decided_at=? WHERE client_id=? AND status='pending'",
+                  (stamp, client_id))
+
+
+def end_coaching(client_id):
+    set_user_field(client_id, 'trainer_id', None)
+    with connect() as c:
+        c.execute('UPDATE coaching SET ended_at=? WHERE client_id=? AND ended_at IS NULL',
+                  (now().isoformat(timespec='seconds'), client_id))
+
+
+def get_trainer_profile(tid):
+    with connect() as c:
+        row = c.execute('SELECT * FROM trainer_profiles WHERE user_id=?', (tid,)).fetchone()
+        photo = c.execute('SELECT updated_at FROM trainer_photos WHERE user_id=?', (tid,)).fetchone()
+    p = dict(row) if row else {'user_id': tid, 'bio': '', 'specializations': '[]', 'experience_years': None,
+                                'certificates': '', 'city': '', 'format': 'both', 'max_clients': None, 'listed': 1}
+    p['specializations'] = json.loads(p.get('specializations') or '[]')
+    p['photo_version'] = photo['updated_at'] if photo else None
+    return p
+
+
+def save_trainer_profile(tid, data):
+    values = {k: data.get(k) for k in TRAINER_PROFILE_FIELDS}
+    values['specializations'] = json.dumps([x for x in (data.get('specializations') or []) if x in SPECIALIZATIONS])
+    values['listed'] = 1 if data.get('listed', True) else 0
+    cols = ', '.join(TRAINER_PROFILE_FIELDS)
+    marks = ', '.join('?' for _ in TRAINER_PROFILE_FIELDS)
+    updates = ', '.join(f'{k}=excluded.{k}' for k in TRAINER_PROFILE_FIELDS)
+    sql = (f'INSERT INTO trainer_profiles(user_id, {cols}, updated_at) VALUES(?, {marks}, ?) '
+           f'ON CONFLICT(user_id) DO UPDATE SET {updates}, updated_at=excluded.updated_at')
+    with connect() as c:
+        c.execute(sql, (tid, *[values[k] for k in TRAINER_PROFILE_FIELDS], now().isoformat(timespec='seconds')))
+
+
+def save_trainer_photo(tid, data, mime):
+    with connect() as c:
+        c.execute('INSERT OR REPLACE INTO trainer_photos(user_id, data, mime, updated_at) VALUES(?,?,?,?)',
+                  (tid, data, mime, now().isoformat(timespec='seconds')))
+
+
+def get_trainer_photo(tid):
+    with connect() as c:
+        row = c.execute('SELECT data, mime FROM trainer_photos WHERE user_id=?', (tid,)).fetchone()
+    return (row['data'], row['mime']) if row else (None, None)
+
+
+def trainer_rating(tid):
+    """(средняя оценка, число отзывов)."""
+    with connect() as c:
+        row = c.execute('SELECT AVG(rating), COUNT(*) FROM reviews WHERE trainer_id=?', (tid,)).fetchone()
+    return (round(row[0], 1) if row[0] else None), row[1]
+
+
+def trainer_reviews(tid, limit=20):
+    sql = ('SELECT r.*, u.name FROM reviews r LEFT JOIN users u ON u.user_id=r.client_id '
+           'WHERE r.trainer_id=? ORDER BY r.updated_at DESC LIMIT ?')
+    with connect() as c:
+        return [dict(r) for r in c.execute(sql, (tid, limit))]
+
+
+def can_review(client_id, tid):
+    """Отзыв оставляют только реальные подопечные: 3+ тренировки от тренера или 2+ недели вместе."""
+    with connect() as c:
+        done = c.execute("SELECT COUNT(*) FROM assignments WHERE client_id=? AND trainer_id=? AND status='done'",
+                         (client_id, tid)).fetchone()[0]
+        if done >= REVIEW_MIN_WORKOUTS:
+            return True
+        rows = c.execute('SELECT started_at, ended_at FROM coaching WHERE client_id=? AND trainer_id=?',
+                         (client_id, tid)).fetchall()
+    for r in rows:
+        end = datetime.fromisoformat(r['ended_at']) if r['ended_at'] else now()
+        if (end - datetime.fromisoformat(r['started_at'])).days >= REVIEW_MIN_DAYS:
+            return True
+    return False
+
+
+def save_review(tid, client_id, rating, text):
+    stamp = now().isoformat(timespec='seconds')
+    sql = ('INSERT INTO reviews(trainer_id, client_id, rating, text, created_at, updated_at) VALUES(?,?,?,?,?,?) '
+           'ON CONFLICT(trainer_id, client_id) DO UPDATE SET rating=excluded.rating, text=excluded.text, '
+           'updated_at=excluded.updated_at')
+    with connect() as c:
+        c.execute(sql, (tid, client_id, rating, text, stamp, stamp))
+
+
+def create_coach_request(client_id, tid, message):
+    with connect() as c:
+        row = c.execute("SELECT id FROM coach_requests WHERE client_id=? AND trainer_id=? AND status='pending'",
+                        (client_id, tid)).fetchone()
+        if row:
+            return row[0]
+        cur = c.execute('INSERT INTO coach_requests(client_id, trainer_id, message, created_at) VALUES(?,?,?,?)',
+                        (client_id, tid, message, now().isoformat(timespec='seconds')))
+        return cur.lastrowid
+
+
+def get_coach_request(rid):
+    with connect() as c:
+        row = c.execute('SELECT * FROM coach_requests WHERE id=?', (rid,)).fetchone()
+    return dict(row) if row else None
+
+
+def pending_requests(tid=None, client_id=None):
+    q, args = "SELECT * FROM coach_requests WHERE status='pending'", []
+    if tid is not None:
+        q += ' AND trainer_id=?'
+        args.append(tid)
+    if client_id is not None:
+        q += ' AND client_id=?'
+        args.append(client_id)
+    with connect() as c:
+        return [dict(r) for r in c.execute(q + ' ORDER BY id', args)]
+
+
+def set_request_status(rid, status):
+    with connect() as c:
+        c.execute('UPDATE coach_requests SET status=?, decided_at=? WHERE id=?',
+                  (status, now().isoformat(timespec='seconds'), rid))
+
+
+def trainer_has_room(tid):
+    limit = get_trainer_profile(tid).get('max_clients')
+    return not limit or len(trainer_clients(tid)) < limit
+
+
+def request_text(req):
+    client = get_user(req['client_id'])
+    lines = [f'📝 <b>Заявка на ведение</b> от <b>{html.escape(display_name(client))}</b>']
+    if profile_complete(client):
+        lines.append(f'{GENDERS[client["gender"]]}, {AGES[client["age"]]} · {GOALS[client["goal"]]} · '
+                     f'{LEVELS[client["level"]].split(":")[0]} · {client["days"]} трен./нед.')
+    if req.get('message'):
+        lines.append(f'💬 {html.escape(req["message"])}')
+    return '\n'.join(lines)
+
+
+async def decide_coach_request(bot, trainer, rid, accept):
+    """Тренер принимает или отклоняет заявку. Возвращает текст результата для тренера."""
+    req = get_coach_request(rid)
+    if not req or req['trainer_id'] != trainer['user_id'] or req['status'] != 'pending':
+        return 'Заявка уже обработана или отменена.'
+    client = get_user(req['client_id'])
+    if accept:
+        if client.get('trainer_id'):
+            set_request_status(rid, 'cancelled')
+            return 'Этот пользователь уже занимается с другим тренером.'
+        if not trainer_has_room(trainer['user_id']):
+            return 'Свободных мест нет — увеличь лимит в профиле или освободи место.'
+        set_request_status(rid, 'accepted')
+        start_coaching(client['user_id'], trainer['user_id'])
+        if bot:
+            await notify(bot, client['user_id'],
+                         f'🎉 Тренер <b>{html.escape(display_name(trainer, ""))}</b> принял твою заявку! '
+                         'Он сможет назначать тренировки и писать тебе. Раздел — «🎓 Мой тренер».',
+                         menu_for(get_user(client['user_id'])))
+        return f'✅ {display_name(client)} теперь твой подопечный.'
+    set_request_status(rid, 'rejected')
+    if bot:
+        await notify(bot, client['user_id'], f'Тренер {html.escape(display_name(trainer, ""))} сейчас не может взять '
+                                             'тебя. Выбери другого тренера в каталоге.')
+    return f'Заявка {display_name(client)} отклонена.'
+
+
 def save_message(from_id, to_id, text):
     with connect() as c:
         c.execute('INSERT INTO messages(from_id, to_id, text, created_at) VALUES(?,?,?,?)',
@@ -3478,6 +3675,10 @@ async def trainer_callback(data, update, context):
         await message.reply_text('✅ Заявка отправлена. Как только её одобрят, я пришлю уведомление.')
         return
     if not is_trainer(user):
+        return
+    if parts[1] == 'rq' and len(parts) == 4 and parts[3].isdigit() and parts[2] in ('a', 'r'):
+        result = await decide_coach_request(context.bot, user, int(parts[3]), parts[2] == 'a')
+        await message.reply_text(result)
         return
     if data == 'tr:home':
         await message.reply_text(cabinet_text(user), parse_mode=ParseMode.HTML, reply_markup=cabinet_kb())
@@ -3803,7 +4004,7 @@ async def client_callback(data, update, context):
         link = get_ref_link(parts[2])
         if not link or not user or user.get('trainer_id') or link['trainer_id'] == uid:
             return
-        set_user_field(uid, 'trainer_id', link['trainer_id'])
+        start_coaching(uid, link['trainer_id'])
         trainer = get_user(link['trainer_id'])
         await message.edit_text(f'✅ Ты подключён к тренеру {display_name(trainer, "")}. '
                                 'Назначенные тренировки и сообщения появятся в «🎓 Мой тренер».')
@@ -3822,7 +4023,7 @@ async def client_callback(data, update, context):
                                  reply_markup=kb([[('Да, отключиться', 'cl:leave2'), ('Отмена', 'cl:stay')]]))
     elif parts[1] == 'leave2' and user and user.get('trainer_id'):
         tid = user['trainer_id']
-        set_user_field(uid, 'trainer_id', None)
+        end_coaching(uid)
         for a in client_assignments(uid):
             set_assignment_status(a['id'], 'cancelled')
         await notify(context.bot, tid, f'👋 {html.escape(display_name(user))} отключился от тренировок с тобой.')

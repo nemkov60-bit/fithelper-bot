@@ -1,8 +1,10 @@
 import { router, useFocusEffect } from 'expo-router';
 import { useCallback, useState } from 'react';
-import { Pressable, TextInput, View } from 'react-native';
+import { Alert, Platform, Pressable, TextInput, View } from 'react-native';
 
 import { Icon } from '../../components/Icon';
+import { Stars } from '../../components/Stars';
+import { TrainerAvatar } from '../../components/TrainerAvatar';
 import { Badge, Button, Card, ErrorBox, Loading, Screen, Segmented, T } from '../../components/ui';
 import { api, type Coach as CoachData } from '../../lib/api';
 import { colors, fonts } from '../../lib/theme';
@@ -31,19 +33,28 @@ export default function Coach() {
     return (
       <Screen>
         <T v="big">Мой тренер</T>
-        <Card style={{ gap: 10 }}>
-          <T v="h3">Тренера пока нет</T>
-          <T v="small">
-            Занимайся по своей программе — она уже составлена под твою цель. Если у тебя есть тренер,
-            попроси у него ссылку-приглашение и открой её в Telegram: тренер появится здесь, сможет
-            назначать тренировки и писать тебе.
+        <Card accent style={{ gap: 10, borderRadius: 28, padding: 20 }}>
+          <T v="h2" style={{ color: colors.onAccent }}>Занимайся с тренером</T>
+          <T style={{ color: colors.onAccent }}>
+            Персональная программа, контроль техники, корректировки и поддержка. Выбери тренера по рейтингу и отзывам.
           </T>
+          <Button title="Выбрать тренера" variant="dark" icon="arrow" onPress={() => router.push('/trainers')} />
+        </Card>
+        {data.pending.map((r) => (
+          <Card key={r.id} style={{ gap: 8 }}>
+            <T v="h3">Заявка отправлена</T>
+            <T v="small">Тренер {r.trainer_name} скоро ответит. Ответ придёт в Telegram.</T>
+            <Button title="Открыть профиль тренера" variant="ghost" small onPress={() => router.push(`/trainers/${r.trainer_id}`)} />
+          </Card>
+        ))}
+        <Card style={{ gap: 6 }}>
+          <T v="h3">Уже есть тренер?</T>
+          <T v="small">Попроси у него ссылку-приглашение и открой её в Telegram — тренер появится здесь.</T>
         </Card>
       </Screen>
     );
   }
 
-  const initials = data.trainer.name.split(' ').map((w) => w[0]).join('').slice(0, 2).toUpperCase();
   const list = tab === 'up' ? data.assignments : data.done;
 
   const send = async () => {
@@ -63,14 +74,18 @@ export default function Coach() {
     <Screen>
       <T v="big">Мой тренер</T>
       <Card style={{ flexDirection: 'row', alignItems: 'center', gap: 14 }}>
-        <View style={{ width: 56, height: 56, borderRadius: 28, backgroundColor: colors.accent, alignItems: 'center', justifyContent: 'center' }}>
-          <T style={{ color: colors.onAccent, fontFamily: fonts.extrabold, fontSize: 19 }}>{initials}</T>
-        </View>
-        <View style={{ flex: 1, gap: 2 }}>
+        <TrainerAvatar name={data.trainer.name} url={data.trainer.photo_url} />
+        <Pressable style={{ flex: 1, gap: 4 }} accessibilityRole="button" onPress={() => router.push(`/trainers/${data.trainer!.id}`)}>
           <T v="h3" style={{ fontSize: 17 }}>{data.trainer.name}</T>
-          <T v="small">Персональный тренер</T>
-        </View>
+          {data.trainer.rating ? <Stars value={data.trainer.rating} size={14} /> : <T v="small">Персональный тренер</T>}
+        </Pressable>
       </Card>
+      {data.can_review && !data.my_review ? (
+        <Card style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+          <T v="small" style={{ flex: 1, color: colors.text }}>Как тебе занятия? Оцени тренера — это поможет другим выбрать.</T>
+          <Button title="Оценить" small onPress={() => router.push(`/trainers/${data.trainer!.id}`)} />
+        </Card>
+      ) : null}
 
       <Segmented label="Тренировки" value={tab} onChange={setTab}
         options={[{ key: 'up', label: 'Назначено' }, { key: 'done', label: 'Выполнено' }]} />
@@ -122,6 +137,19 @@ export default function Coach() {
           </Pressable>
         </View>
       </Card>
+      <Button title="Отключиться от тренера" variant="ghost" small onPress={() => confirmLeave(async () => {
+        await api('/api/coach/leave', { method: 'POST' });
+        await load();
+      })} />
     </Screen>
   );
+}
+
+function confirmLeave(onYes: () => void) {
+  const text = 'Отключиться от тренера? Он перестанет видеть твой прогресс, назначенные тренировки отменятся.';
+  if (Platform.OS === 'web') {
+    if (globalThis.confirm?.(text)) onYes();
+    return;
+  }
+  Alert.alert('Отключиться от тренера?', text, [{ text: 'Отмена', style: 'cancel' }, { text: 'Отключиться', style: 'destructive', onPress: onYes }]);
 }
