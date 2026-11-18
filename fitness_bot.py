@@ -2972,7 +2972,7 @@ async def admin_panel(update: Update, context: ContextTypes.DEFAULT_TYPE):
 def admin_menu_kb():
     return kb([[('📸 Фото упражнений', 'ad:groups')],
                [('🎓 Тренеры', 'ad:tr'), ('💳 Выдать подписку', 'ad:sub')],
-               [('💸 Выплаты тренерам', 'ad:pay'), ('🖼 Фото моделей', 'ad:hero')],
+               [('💸 Выплаты тренерам', 'ad:pay'), ('🖼 Фото для приложения', 'ad:hero')],
                [('💾 Резервная копия базы', 'ad:backup')]])
 
 
@@ -3081,16 +3081,16 @@ async def admin_callback(data, update, context):
         await message.reply_text(SUB_HELP, parse_mode=ParseMode.HTML)
     elif data == 'ad:hero':
         await message.reply_text(admin_hero_text(), parse_mode=ParseMode.HTML, reply_markup=admin_hero_kb())
-    elif parts[1] in ('hu', 'hp', 'hd') and len(parts) == 3 and parts[2] in HERO_GENDERS:
-        g = parts[2]
-        if parts[1] == 'hu':
-            context.user_data['await'] = f'hero:{g}'
-            await message.reply_text(f'Отправь фото ({HERO_GENDERS[g]} версия) — лучше файлом, без сжатия. /cancel — отмена.')
-        elif parts[1] == 'hp':
-            await message.reply_text(f'<b>Промт ({HERO_GENDERS[g]} версия)</b>\n\n{html.escape(hero_prompt(g))}',
-                                     parse_mode=ParseMode.HTML)
+    elif parts[1] in ('hs', 'hu', 'hd') and len(parts) == 3 and parts[2] in APP_PHOTOS:
+        key = parts[2]
+        if parts[1] == 'hs':
+            text, markup = admin_photo_slot(key)
+            await message.reply_text(text, parse_mode=ParseMode.HTML, reply_markup=markup)
+        elif parts[1] == 'hu':
+            context.user_data['await'] = f'hero:{key}'
+            await message.reply_text(f'Отправь фото «{APP_PHOTOS[key][0]}» — лучше файлом, без сжатия. /cancel — отмена.')
         else:
-            delete_app_photo('home', g)
+            delete_app_photo(*_split(key))
             await message.reply_text('🗑 Фото удалено.\n\n' + admin_hero_text(), parse_mode=ParseMode.HTML,
                                      reply_markup=admin_hero_kb())
     elif data == 'ad:pay':
@@ -3161,7 +3161,12 @@ async def admin_callback(data, update, context):
             await show_admin_exercise(message, ex)
 
 
-async def save_hero_from_message(message, context, gender):
+async def save_hero_from_message(message, context, key):
+    if key in HERO_GENDERS:  # старый формат ожидания
+        key = f'home_{key}'
+    if key not in APP_PHOTOS:
+        context.user_data.pop('await', None)
+        return
     if message.photo:
         tg_file, mime = await message.photo[-1].get_file(), 'image/jpeg'
     elif message.document and (message.document.mime_type or '') in ('image/jpeg', 'image/png', 'image/webp'):
@@ -3173,9 +3178,9 @@ async def save_hero_from_message(message, context, gender):
     if len(data) > 6 * 1024 * 1024:
         await message.reply_text('Файл больше 6 МБ — сожми его и отправь ещё раз.')
         return
-    save_app_photo('home', gender, data, mime)
+    save_app_photo(*_split(key), data, mime)
     context.user_data.pop('await', None)
-    await message.reply_text(f'✅ Фото ({HERO_GENDERS[gender]} версия) сохранено — оно уже на главном экране приложения.\n\n'
+    await message.reply_text(f'✅ «{APP_PHOTOS[key][0]}» сохранено — фото уже в приложении.\n\n'
                              + admin_hero_text(), parse_mode=ParseMode.HTML, reply_markup=admin_hero_kb())
 
 
@@ -3188,7 +3193,7 @@ async def photo_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     target = None
     awaiting = context.user_data.get('await') or ''
     if awaiting.startswith('hero:'):
-        await save_hero_from_message(message, context, awaiting.split(':')[1])
+        await save_hero_from_message(message, context, awaiting.split(':', 1)[1])
         return
     # Быстрый способ: фото с подписью «bench 1» или «bench 1 f» (подпись важнее ожидаемого кадра).
     m = re.fullmatch(r'\s*([a-z_]+)[\s_]+(\d)(?:[\s_]+(f|ж|m|м))?\s*', (message.caption or '').lower())
@@ -3510,8 +3515,23 @@ def measurements_text(uid):
     return '\n'.join(lines)
 
 
-# ---------- Фото моделей для приложения (главный экран), отдельно для мужской и женской версии ----------
-HERO_GENDERS = {'m': '👨 мужская', 'f': '👩 женская'}
+# ---------- Фото для приложения (главная, вход, итог тренировки, тренер, друзья) ----------
+# Ключ — «место_пол»: u — для всех/до выбора пола, m — мужская версия, f — женская.
+APP_PHOTOS = {
+    'home_u': ('👫 Главная и вход — пара', 'экран входа, первый шаг анкеты, главная до выбора пола'),
+    'home_m': ('👨 Главная — мужчина', 'главная, карточка «Тренировка дня»'),
+    'home_f': ('👩 Главная — женщина', 'главная, карточка «Тренировка дня»'),
+    'done_m': ('🏁 Итог тренировки — мужчина', 'экран после завершения тренировки'),
+    'done_f': ('🏁 Итог тренировки — женщина', 'экран после завершения тренировки'),
+    'coach_u': ('🎓 Занятия с тренером', 'раздел «Тренер» и каталог тренеров'),
+    'friends_u': ('🤝 Тренируйся с другом', 'экран «Друзья»'),
+}
+HERO_GENDERS = {'m': '👨 мужская', 'f': '👩 женская', 'u': '👫 общая'}
+
+
+def _split(key):
+    slot, g = key.rsplit('_', 1)
+    return slot, g
 
 
 def save_app_photo(slot, gender, data, mime):
@@ -3532,35 +3552,55 @@ def app_photo_version(slot, gender):
     return row[0] if row else None
 
 
+def app_photo_versions():
+    """{ключ: версия} всех загруженных фото."""
+    with connect() as c:
+        return {f'{r["slot"]}_{r["gender"]}': r['updated_at'] for r in c.execute('SELECT slot, gender, updated_at FROM app_photos')}
+
+
 def delete_app_photo(slot, gender):
     with connect() as c:
         c.execute('DELETE FROM app_photos WHERE slot=? AND gender=?', (slot, gender))
 
 
-def hero_prompt(gender):
+def photo_prompt(key, lang='RU'):
+    """Промт из MODEL_PHOTO_PROMPTS.md: раздел с `ключом` в заголовке, абзац **RU:** или **EN:**."""
     text = (Path(__file__).resolve().parent / 'MODEL_PHOTO_PROMPTS.md').read_text(encoding='utf-8')
-    part = text.split('## 👨')[1].split('## 👩')[0] if gender == 'm' else text.split('## 👩')[1].split('## Советы')[0]
-    return part.split('\n', 1)[1].strip()
+    section = next((sec for sec in text.split('\n## ') if f'`{key}`' in sec.split('\n', 1)[0]), '')
+    if not section and key == 'done_f':
+        section = next((sec for sec in text.split('\n## ') if '`done_f`' in sec), '')
+    part = section.split(f'**{lang}:**', 1)[-1] if f'**{lang}:**' in section else ''
+    return ' '.join(part.split('**EN:**')[0].split()) if part else ''
+
+
+def hero_prompt(gender):  # совместимость
+    return photo_prompt(f'home_{gender}')
 
 
 def admin_hero_kb():
-    rows = []
-    for g, label in HERO_GENDERS.items():
-        has = app_photo_version('home', g)
-        rows.append([(f'📤 Загрузить {label.split()[0]}', f'ad:hu:{g}'), (f'📝 Промт {label.split()[0]}', f'ad:hp:{g}')]
-                    + ([(f'🗑 {label.split()[0]}', f'ad:hd:{g}')] if has else []))
+    have = app_photo_versions()
+    rows = [[(f'{"✅" if k in have else "▫️"} {label}', f'ad:hs:{k}')] for k, (label, _) in APP_PHOTOS.items()]
     rows.append([('⬅️ Админка', 'ad:menu')])
     return kb(rows)
 
 
 def admin_hero_text():
-    lines = ['<b>🖼 Фото моделей для приложения</b>', '',
-             'Фото показывается на главном экране в карточке «Тренировка дня»: мужчинам — мужская версия, '
-             'девушкам — женская. Формат — горизонтальный 16:10, модель справа, слева место для текста.', '']
-    for g, label in HERO_GENDERS.items():
-        v = app_photo_version('home', g)
-        lines.append(f'{label.capitalize()}: ' + (f'✅ загружено {v[:10]}' if v else '— нет'))
-    return '\n'.join(lines)
+    have = app_photo_versions()
+    return ('<b>🖼 Фото для приложения</b>\n\n'
+            f'Загружено {sum(k in have for k in APP_PHOTOS)} из {len(APP_PHOTOS)}. Формат — горизонтальный 16:10, 4K, '
+            'люди справа, слева тёмное место под текст. Пока фото нет, экран выглядит как обычно.\n\n'
+            'Выбери место — покажу промт для генерации и кнопку загрузки.')
+
+
+def admin_photo_slot(key):
+    label, where = APP_PHOTOS[key]
+    v = app_photo_version(*_split(key))
+    text = (f'<b>{label}</b>\nГде: {where}\nСтатус: ' + (f'✅ загружено {v[:10]}' if v else '— нет') +
+            f'\n\n<b>Промт:</b>\n{html.escape(photo_prompt(key))}\n\n'
+            '<i>Английская версия промта — в файле MODEL_PHOTO_PROMPTS.md.</i>')
+    rows = [[('📤 Загрузить', f'ad:hu:{key}')] + ([('🗑 Удалить', f'ad:hd:{key}')] if v else []),
+            [('⬅️ Все фото', 'ad:hero')]]
+    return text, kb(rows)
 
 
 def save_trainer_photo(tid, data, mime):

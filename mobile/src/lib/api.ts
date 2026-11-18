@@ -86,6 +86,7 @@ export type Meta = {
   day_options: number[];
   groups: Record<string, string>;
   group_types: Record<string, string>;
+  photos: Record<string, string>;
 };
 
 export type PlannedExercise = {

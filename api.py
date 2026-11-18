@@ -368,7 +368,7 @@ def create_app(bot=None):
     def meta():
         return {'genders': fb.GENDERS, 'ages': fb.AGES, 'goals': fb.GOALS, 'levels': fb.LEVELS, 'places': fb.PLACES,
                 'day_options': list(fb.DAY_OPTIONS), 'groups': fb.GROUPS,
-                'group_types': {k: v[0] for k, v in fb.GROUP_TYPES.items()}}
+                'group_types': {k: v[0] for k, v in fb.GROUP_TYPES.items()}, 'photos': photo_urls()}
 
     @app.get('/api/me')
     def me(user=Depends(current_user)):
@@ -662,17 +662,29 @@ def create_app(bot=None):
             raise HTTPException(422, 'Укажи хотя бы один объём')
         return {'measurements': fb.measurements_summary(user['user_id'])}
 
-    @app.get('/api/hero/{gender}.jpg')
-    def hero_photo(gender: str):
-        photo = fb.get_app_photo('home', gender)
+    @app.get('/api/photos/{key}.jpg')
+    def app_photo(key: str):
+        if key not in fb.APP_PHOTOS:
+            raise HTTPException(404)
+        photo = fb.get_app_photo(*key.rsplit('_', 1))
         if not photo:
             raise HTTPException(404)
         return Response(photo['data'], media_type=photo['mime'], headers={'Cache-Control': 'public, max-age=86400'})
 
+    @app.get('/api/hero/{gender}.jpg')
+    def hero_photo(gender: str):
+        return app_photo(f'home_{gender}')
+
+    def photo_urls():
+        return {k: f'/api/photos/{k}.jpg?v={v.replace(":", "")}' for k, v in fb.app_photo_versions().items()
+                if k in fb.APP_PHOTOS}
+
+    def gender_key(user):
+        return {'m': 'm', 'f': 'f'}.get(user.get('gender'), 'u')
+
     def hero_url(user):
-        g = 'f' if user.get('gender') == 'f' else 'm'
-        v = fb.app_photo_version('home', g)
-        return f'/api/hero/{g}.jpg?v={v.replace(":", "")}' if v else None
+        urls = photo_urls()
+        return urls.get(f'home_{gender_key(user)}') or urls.get('home_u')
 
     @app.post('/api/body-weight')
     def body_weight(body: WeightIn, user=Depends(profile_user)):

@@ -6,10 +6,13 @@ import { Icon } from '../../components/Icon';
 import { Stars } from '../../components/Stars';
 import { TrainerAvatar } from '../../components/TrainerAvatar';
 import { Badge, Button, Card, ErrorBox, Loading, Screen, Segmented, T } from '../../components/ui';
+import { PhotoBanner } from '../../components/PhotoBanner';
 import { api, type Coach as CoachData } from '../../lib/api';
+import { useAuth } from '../../lib/auth';
 import { colors, fonts } from '../../lib/theme';
 
 export default function Coach() {
+  const { meta } = useAuth();
   const [data, setData] = useState<CoachData | null>(null);
   const [error, setError] = useState('');
   const [tab, setTab] = useState<'up' | 'done'>('up');
@@ -31,6 +34,7 @@ export default function Coach() {
     return (
       <Screen>
         <T v="big">Мой тренер</T>
+        {meta?.photos?.coach_u ? <PhotoBanner url={meta.photos.coach_u} minHeight={190} label="Занятия с тренером" /> : null}
         <Card accent style={{ gap: 10, borderRadius: 28, padding: 20 }}>
           <T v="h2" style={{ color: colors.onAccent }}>Занимайся с тренером</T>
           <T style={{ color: colors.onAccent }}>

@@ -2,6 +2,7 @@ import { router } from 'expo-router';
 import { useState } from 'react';
 import { Pressable, View } from 'react-native';
 
+import { PhotoBanner } from '../components/PhotoBanner';
 import { Button, Card, ProgressBar, Screen, T } from '../components/ui';
 import { api, type Me } from '../lib/api';
 import { useAuth } from '../lib/auth';
@@ -60,6 +61,7 @@ export default function Onboarding() {
 
   return (
     <Screen bottomInset={40}>
+      {step === 0 && meta?.photos?.home_u ? <PhotoBanner url={meta.photos.home_u} minHeight={190} label="Фитнес-модели" /> : null}
       <View style={{ gap: 10, marginTop: 8 }}>
         <T v="label">ШАГ {step + 1} ИЗ {STEPS.length}</T>
         <ProgressBar value={(step + 1) / STEPS.length} />

@@ -1,11 +1,11 @@
 import { router, useFocusEffect } from 'expo-router';
 import { useCallback, useState } from 'react';
-import { LinearGradient } from 'expo-linear-gradient';
-import { ImageBackground, Pressable, View } from 'react-native';
+import { Pressable, View } from 'react-native';
 
 import { Icon } from '../../components/Icon';
 import { Badge, Button, Card, ErrorBox, Loading, Ring, Screen, Segmented, T } from '../../components/ui';
-import { api, photoUrl, type Today } from '../../lib/api';
+import { onPhoto, PhotoBanner } from '../../components/PhotoBanner';
+import { api, type Today } from '../../lib/api';
 import { useAuth } from '../../lib/auth';
 import { colors, fonts } from '../../lib/theme';
 
@@ -65,15 +65,11 @@ export default function Home() {
 
       {data.hero_url ? (
         // Фото модели (мужская/женская версия) с затемнением слева, чтобы текст читался на любой теме.
-        <ImageBackground source={{ uri: photoUrl(data.hero_url) }} resizeMode="cover" accessibilityLabel="Фото модели"
-          style={{ borderRadius: 28, overflow: 'hidden', minHeight: 230, backgroundColor: '#111' }}>
-          <LinearGradient colors={['rgba(8,8,10,0.88)', 'rgba(8,8,10,0.55)', 'rgba(8,8,10,0)']} locations={[0, 0.5, 0.85]}
-            start={{ x: 0, y: 0.5 }} end={{ x: 1, y: 0.5 }} style={{ flex: 1, padding: 18, gap: 8, justifyContent: 'flex-end' }}>
-            <Badge label="Тренировка дня" />
-            <T v="h1" style={{ color: '#FFFFFF', maxWidth: '68%' }}>{data.plan.title}</T>
-            <T v="small" style={{ color: 'rgba(255,255,255,0.8)', maxWidth: '68%' }}>{data.plan.groups.join(', ')}</T>
-          </LinearGradient>
-        </ImageBackground>
+        <PhotoBanner url={data.hero_url} minHeight={230} label="Фото модели">
+          <Badge label="Тренировка дня" />
+          <T v="h1" style={{ color: onPhoto.text }}>{data.plan.title}</T>
+          <T v="small" style={{ color: onPhoto.soft }}>{data.plan.groups.join(', ')}</T>
+        </PhotoBanner>
       ) : (
         <View style={{ borderRadius: 28, overflow: 'hidden', backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, padding: 18, gap: 8, minHeight: 170, justifyContent: 'flex-end' }}>
           <Badge label="Тренировка дня" />

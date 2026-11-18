@@ -420,13 +420,26 @@ class BodyChatHeroTests(unittest.TestCase):
         self.assertIsNone(self.client.get('/api/today', headers=h).json()['hero_url'])
         fb.save_app_photo('home', 'f', b'\xff\xd8jpegdata', 'image/jpeg')
         url = self.client.get('/api/today', headers=h).json()['hero_url']
-        self.assertTrue(url.startswith('/api/hero/f.jpg?v='))
+        self.assertTrue(url.startswith('/api/photos/home_f.jpg?v='))
+        self.assertEqual(self.client.get('/api/hero/f.jpg').content, b'\xff\xd8jpegdata')
         self.assertEqual(self.client.get(url).content, b'\xff\xd8jpegdata')
         self.assertEqual(self.client.get('/api/hero/m.jpg').status_code, 404)
         self.assertIn('RU', fb.hero_prompt('m') + 'RU')
         self.assertIn('мужчина', fb.hero_prompt('m'))
-        self.assertIn('девушка', fb.hero_prompt('f'))
+        self.assertIn('женщина', fb.hero_prompt('f'))
+        for key in fb.APP_PHOTOS:
+            self.assertGreater(len(fb.photo_prompt(key)), 300, key)
+            self.assertIn('16:10', fb.photo_prompt(key, 'EN'), key)
+        # Пара — до выбора пола; на неё же откатывается главная, если своей версии нет.
+        fb.save_app_photo('home', 'u', b'pair', 'image/jpeg')
+        photos = self.client.get('/api/meta').json()['photos']
+        self.assertEqual(set(photos), {'home_f', 'home_u'})
+        self.assertEqual(self.client.get(photos['home_u']).content, b'pair')
+        self.assertEqual(self.client.get('/api/photos/evil_x.jpg').status_code, 404)
         fb.delete_app_photo('home', 'f')
+        hm = self.h(9403, 'Миша', 'm')
+        self.assertTrue(self.client.get('/api/today', headers=hm).json()['hero_url'].startswith('/api/photos/home_u.jpg'))
+        fb.delete_app_photo('home', 'u')
 
     def test_chat(self):
         th = self.h(9411, 'Тренер Лёша')

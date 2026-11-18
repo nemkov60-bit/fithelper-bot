@@ -6,7 +6,9 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { Icon } from '../components/Icon';
 import { Badge, Button, Card, Chip, IconButton, Loading, ProgressBar, Screen, T } from '../components/ui';
+import { onPhoto, PhotoBanner } from '../components/PhotoBanner';
 import { api, type CardioInfo, type DayPlan, type PlannedExercise } from '../lib/api';
+import { useAuth } from '../lib/auth';
 import { colors, fonts } from '../lib/theme';
 
 type Stage = 'warmup' | 'main' | 'cooldown' | 'summary';
@@ -24,6 +26,7 @@ function confirm(title: string, message: string, onYes: () => void) {
 }
 
 export default function Workout() {
+  const { me, meta } = useAuth();
   const params = useLocalSearchParams<{ place?: string; day?: string; assignment?: string }>();
   const [wid, setWid] = useState<number | null>(null);
   const [assignmentId, setAssignmentId] = useState<number | null>(null);
@@ -126,14 +129,22 @@ export default function Workout() {
     </View>
   );
 
+  const doneUrl = meta?.photos?.[`done_${me?.profile.gender === 'f' ? 'f' : 'm'}`];
   if (stage === 'summary' && summary) {
     return (
       <Screen bottomInset={40}>
         {header}
-        <Card accent style={{ gap: 6, borderRadius: 28, padding: 20 }}>
-          <T v="h1" style={{ color: colors.onAccent }}>Тренировка завершена!</T>
-          <T style={{ color: colors.onAccent }}>Отличная работа 💪</T>
-        </Card>
+        {doneUrl ? (
+          <PhotoBanner url={doneUrl} minHeight={200} label="Тренировка завершена">
+            <T v="h1" style={{ color: onPhoto.text }}>Тренировка завершена!</T>
+            <T style={{ color: onPhoto.soft }}>Отличная работа 💪</T>
+          </PhotoBanner>
+        ) : (
+          <Card accent style={{ gap: 6, borderRadius: 28, padding: 20 }}>
+            <T v="h1" style={{ color: colors.onAccent }}>Тренировка завершена!</T>
+            <T style={{ color: colors.onAccent }}>Отличная работа 💪</T>
+          </Card>
+        )}
         <View style={{ flexDirection: 'row', gap: 10 }}>
           <Card style={{ flex: 1 }}><T v="h2">{summary.minutes}</T><T v="small">минут</T></Card>
           <Card style={{ flex: 1 }}><T v="h2">{summary.sets}</T><T v="small">подходов</T></Card>

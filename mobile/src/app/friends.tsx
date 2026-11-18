@@ -3,7 +3,9 @@ import { useCallback, useState } from 'react';
 import { Image, Pressable, View } from 'react-native';
 
 import { Button, Card, ErrorBox, IconButton, Loading, ProgressBar, Screen, Stat, T } from '../components/ui';
+import { PhotoBanner } from '../components/PhotoBanner';
 import { api, photoUrl } from '../lib/api';
+import { useAuth } from '../lib/auth';
 import { plural } from '../lib/format';
 import { IOS_STORE } from '../lib/platform';
 import { shareCard, shareLink } from '../lib/share';
@@ -23,6 +25,7 @@ const FRIEND_STATUS: Record<string, string> = {
 
 // Друзья: личная ссылка, «Тренируйся с другом» и карточка результата.
 export default function FriendsScreen() {
+  const { meta } = useAuth();
   const [d, setD] = useState<Friends | null>(null);
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
@@ -89,6 +92,7 @@ export default function FriendsScreen() {
       </View>
 
       <T v="h2">Тренируйся с другом</T>
+      {meta?.photos?.friends_u ? <PhotoBanner url={meta.photos.friends_u} minHeight={180} label="Тренируйся с другом" /> : null}
       {d.pair ? (
         <Card style={{ gap: 12 }}>
           <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>

@@ -2,10 +2,12 @@ import { router, useFocusEffect } from 'expo-router';
 import { useCallback, useState } from 'react';
 import { Pressable, ScrollView, TextInput, View } from 'react-native';
 
+import { PhotoBanner } from '../../components/PhotoBanner';
 import { Stars } from '../../components/Stars';
 import { TrainerAvatar } from '../../components/TrainerAvatar';
 import { Badge, Card, ErrorBox, IconButton, Loading, Screen, Segmented, T } from '../../components/ui';
 import { api } from '../../lib/api';
+import { useAuth } from '../../lib/auth';
 import { plural, REVIEWS, YEARS } from '../../lib/format';
 import { colors, fonts } from '../../lib/theme';
 import type { TrainerCard } from '../../lib/trainer';
@@ -14,6 +16,7 @@ type Catalog = { trainers: TrainerCard[]; specializations: Record<string, string
 
 // Каталог тренеров: лучшие по рейтингу сверху, фильтры по специализации, формату и городу.
 export default function Trainers() {
+  const { meta } = useAuth();
   const [data, setData] = useState<Catalog | null>(null);
   const [error, setError] = useState('');
   const [spec, setSpec] = useState('');
@@ -42,6 +45,7 @@ export default function Trainers() {
         <IconButton icon="back" label="Назад" onPress={() => router.back()} />
         <T v="h1" style={{ flex: 1 }}>Тренеры</T>
       </View>
+      {meta?.photos?.coach_u ? <PhotoBanner url={meta.photos.coach_u} minHeight={170} label="Занятия с тренером" /> : null}
       <T v="small">Персональная программа, контроль техники и прогресса. Рейтинг — по оценкам подопечных.</T>
 
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8 }}>
