@@ -76,7 +76,7 @@ TZ_NAME = os.environ.get('FITNESS_TZ', 'Europe/Moscow')
 log = logging.getLogger('fitness_bot')
 
 # Версия кода: видна в «🛠 Админ» и в логах запуска — по ней видно, обновился ли бот на хостинге.
-BOT_VERSION = '2026-11-17 · шрифты, фото, объёмы, чат'
+BOT_VERSION = '2026-11-18 · приложение, кабинет тренера, друзья'
 
 
 def now():
@@ -4580,11 +4580,42 @@ def cabinet_text(trainer):
     return '\n'.join(lines)
 
 
-def cabinet_kb():
-    return kb([[('🎯 Назначить тренировку', 'tr:asc')],
-               [('🔗 Мои ссылки', 'tr:links'), ('👥 Подопечные', 'tr:clients')],
-               [('💰 Начисления и выплаты', 'tr:money')],
-               [('🏆 Уровни программы', 'tr:levels')]])
+def cabinet_kb(trainer=None):
+    rows = [[('🎯 Назначить тренировку', 'tr:asc')],
+            [('🔗 Мои ссылки', 'tr:links'), ('👥 Подопечные', 'tr:clients')]]
+    pending = pending_requests(tid=trainer['user_id']) if trainer else []
+    if pending:
+        rows.append([(f'📥 Заявки ({len(pending)})', 'tr:rqs')])
+    rows += [[('💰 Начисления и выплаты', 'tr:money')],
+             [('📇 Профиль в каталоге', 'tr:prof'), ('🏆 Уровни программы', 'tr:levels')]]
+    return kb(rows)
+
+
+def app_url():
+    """Адрес веб-версии приложения (переменная APP_URL на хостинге), если задан."""
+    url = (os.environ.get('APP_URL') or '').strip().rstrip('/')
+    return url if url.startswith('https://') else ''
+
+
+def catalog_profile_text(trainer):
+    tid = trainer['user_id']
+    prof = get_trainer_profile(tid)
+    rating, count = trainer_rating(tid)
+    listed = bool(prof.get('bio')) and bool(prof.get('listed'))
+    lines = ['<b>📇 Профиль в каталоге тренеров</b>', '']
+    if listed:
+        lines.append('✅ Ты в каталоге — клиенты видят твой профиль и могут отправить заявку.')
+        lines.append(f'⭐ Рейтинг: {str(rating).replace(".", ",")} ({count} отз.)' if count else '⭐ Отзывов пока нет.')
+    else:
+        lines.append('⚠️ Тебя пока нет в каталоге: заполни «О себе», и профиль появится в списке тренеров.')
+    filled = [name for key, name in (('photo_version', 'фото'), ('bio', 'о себе'), ('specializations', 'специализации'),
+                                     ('experience_years', 'стаж'), ('certificates', 'сертификаты'), ('city', 'город'))
+              if prof.get(key)]
+    lines += ['', 'Заполнено: ' + (', '.join(filled) if filled else 'ничего')]
+    where = f'<a href="{app_url()}/trainer/profile">приложении</a>' if app_url() else 'приложении FitHelper'
+    lines += ['', f'Профиль с фото удобнее редактировать в {where}: «Кабинет» → «Профиль в каталоге». '
+                  'Вход — через этого бота.']
+    return '\n'.join(lines)
 
 
 def levels_text(subs):
@@ -4645,6 +4676,15 @@ def client_card_text(client):
         diff = bw[-1]['weight'] - bw[0]['weight']
         sign = '+' if diff > 0 else ''
         lines.append(f'⚖️ Вес: {fmt_w(bw[-1]["weight"])} кг ({sign}{fmt_w(diff)} от старта)')
+    ms = measurements_summary(cid)
+    if ms:
+        parts = []
+        for k, label in MEASURES.items():
+            if k in ms:
+                d = ms[k]['total_delta']
+                parts.append(f'{label.split(" (")[0].lower()} {fmt_w(ms[k]["value"])}'
+                             + (f' ({"+" if d > 0 else ""}{fmt_w(d)})' if d else ''))
+        lines.append('📏 Объёмы, см: ' + ', '.join(parts))
     pending = client_assignments(cid)
     if pending:
         lines += ['', '<b>🎯 Назначено</b>'] + [f'• {date_label(a["date"])} — {html.escape(a["title"])}' for a in pending]
@@ -4698,7 +4738,7 @@ async def trainer_cabinet(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await trainer_apply_prompt(message, user)
         return
     context.user_data.pop('await', None)
-    await message.reply_text(cabinet_text(user), parse_mode=ParseMode.HTML, reply_markup=cabinet_kb())
+    await message.reply_text(cabinet_text(user), parse_mode=ParseMode.HTML, reply_markup=cabinet_kb(user))
 
 
 async def trainer_apply_prompt(message, user):
@@ -4723,7 +4763,7 @@ async def trainer_callback(data, update, context):
         ensure_user_row(uid, update.effective_user.first_name or '')
         user = get_user(uid)
         if is_trainer(user):
-            await message.reply_text(cabinet_text(user), parse_mode=ParseMode.HTML, reply_markup=cabinet_kb())
+            await message.reply_text(cabinet_text(user), parse_mode=ParseMode.HTML, reply_markup=cabinet_kb(user))
             return
         if not admin_ids():
             await message.reply_text('Приём заявок пока не настроен. Напиши администратору бота.')
@@ -4744,7 +4784,19 @@ async def trainer_callback(data, update, context):
         await message.reply_text(result)
         return
     if data == 'tr:home':
-        await message.reply_text(cabinet_text(user), parse_mode=ParseMode.HTML, reply_markup=cabinet_kb())
+        await message.reply_text(cabinet_text(user), parse_mode=ParseMode.HTML, reply_markup=cabinet_kb(user))
+    elif data == 'tr:rqs':
+        pending = pending_requests(tid=uid)
+        if not pending:
+            await message.reply_text('Новых заявок нет.', reply_markup=kb([[('⬅️ Кабинет', 'tr:home')]]))
+        for r in pending:
+            await message.reply_text(request_text(r), parse_mode=ParseMode.HTML,
+                                     reply_markup=kb([[('✅ Принять', f'tr:rq:a:{r["id"]}'), ('❌ Отклонить', f'tr:rq:r:{r["id"]}')]]))
+    elif data == 'tr:prof':
+        rows = [[InlineKeyboardButton('✏️ Открыть в приложении', url=f'{app_url()}/trainer/profile')]] if app_url() else []
+        rows.append([InlineKeyboardButton('⬅️ Кабинет', callback_data='tr:home')])
+        await message.reply_text(catalog_profile_text(user), parse_mode=ParseMode.HTML,
+                                 reply_markup=InlineKeyboardMarkup(rows), disable_web_page_preview=True)
     elif data == 'tr:levels':
         await message.reply_text(levels_text(referral_stats(uid)[1]), parse_mode=ParseMode.HTML,
                                  reply_markup=kb([[('⬅️ Кабинет', 'tr:home')]]))
@@ -5344,7 +5396,7 @@ async def handle_coach_invite(update, context, code):
                                          f'{html.escape(uname)} (ID <code>{uid}</code>).')
     await message.reply_text('🎉 Добро пожаловать в партнёрскую программу! Кабинет тренера — кнопка '
                              f'«{BTN_CABINET}» в меню.', reply_markup=menu_for(user))
-    await message.reply_text(cabinet_text(user), parse_mode=ParseMode.HTML, reply_markup=cabinet_kb())
+    await message.reply_text(cabinet_text(user), parse_mode=ParseMode.HTML, reply_markup=cabinet_kb(user))
     return True
 
 

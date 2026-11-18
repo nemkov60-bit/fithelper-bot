@@ -484,3 +484,16 @@ class BodyChatHeroTests(unittest.TestCase):
         self.assertEqual([x['text'] for x in r['messages']], ['Здорово'])
         self.assertTrue(self.client.get('/api/chat/9411', headers=ch).json()['messages'][0]['read'])
         self.assertEqual(r['peer']['role'], 'trainer')
+
+
+class CabinetButtonsTests(unittest.TestCase):
+    def test_cabinet_kb_and_profile_text(self):
+        fb.ensure_user_row(9701, 'Тренер Кнопка')
+        fb.make_trainer(9701)
+        fb.ensure_user_row(9702, 'Клиент Кнопка')
+        texts = lambda: [b.text for row in fb.cabinet_kb(fb.get_user(9701)).inline_keyboard for b in row]
+        self.assertNotIn('📥 Заявки (1)', texts())
+        fb.create_coach_request(9702, 9701, '')
+        self.assertIn('📥 Заявки (1)', texts())
+        self.assertIn('📇 Профиль в каталоге', texts())
+        self.assertIn('Тебя пока нет в каталоге', fb.catalog_profile_text(fb.get_user(9701)))
