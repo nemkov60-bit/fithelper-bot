@@ -16,6 +16,8 @@ export default function Profile() {
   const [groupType, setGroupType] = useState<string | null>(null);
   const [minutes, setMinutes] = useState(55);
   const [message, setMessage] = useState('');
+  const [targetError, setTargetError] = useState('');
+  const [groupNote, setGroupNote] = useState('');
 
   if (!me || !meta) return null;
   const p = me.profile;
@@ -27,11 +29,24 @@ export default function Profile() {
     setMessage(done);
   };
 
+  // Цель по весу: проверяем ввод и показываем результат прямо у поля, а не вверху экрана.
+  const saveTarget = async () => {
+    const raw = target.trim().replace(',', '.');
+    const value = raw ? Number(raw) : 0;
+    if (raw && (!Number.isFinite(value) || value < 30 || value > 300)) {
+      setTargetError('Укажи вес числом от 30 до 300 кг, например 75 или 72,5');
+      throw new Error('invalid');
+    }
+    setTargetError('');
+    await api('/api/me/settings', { method: 'PATCH', body: { target_weight: value } });
+    await refresh();
+  };
+
   const logGroup = async () => {
     if (!groupType) return;
     await api('/api/groups/log', { body: { type: groupType, minutes } });
     setGroupType(null);
-    setMessage('Групповая тренировка засчитана в прогресс');
+    setGroupNote('✓ Засчитано в прогресс тренировок');
   };
 
   return (
@@ -88,8 +103,12 @@ export default function Profile() {
           <TextInput value={target} onChangeText={setTarget} keyboardType="decimal-pad" placeholder="Например, 75"
             placeholderTextColor={colors.muted} accessibilityLabel="Цель по весу тела, кг"
             style={{ flex: 1, minWidth: 0, height: 48, borderRadius: 14, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.bg, color: colors.text, paddingHorizontal: 14, fontFamily: fonts.semibold, fontSize: 15 }} />
-          <Button title="Сохранить" small onPress={() => saveSettings({ target_weight: parseFloat(target.replace(',', '.')) || 0 }, 'Цель сохранена')} />
+          <Button title="Сохранить" small successTitle="Сохранено ✓" onPress={saveTarget} />
         </View>
+        {targetError ? <T v="small" style={{ color: colors.danger }}>{targetError}</T> : null}
+        {!targetError && me.profile.target_weight ? (
+          <T v="small">Текущая цель: {String(me.profile.target_weight).replace('.', ',')} кг. Прогресс к цели — на экране «Прогресс».</T>
+        ) : null}
       </Card>
 
       <Card style={{ gap: 10 }}>
@@ -97,7 +116,7 @@ export default function Profile() {
         <T v="small">Йога, пилатес, сайкл и другие занятия засчитываются в недельный план.</T>
         <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
           {Object.entries(meta.group_types).map(([key, name]) => (
-            <Pressable key={key} accessibilityRole="button" accessibilityState={{ selected: groupType === key }} onPress={() => setGroupType(key)}
+            <Pressable key={key} accessibilityRole="button" accessibilityState={{ selected: groupType === key }} onPress={() => { setGroupType(key); setGroupNote(''); }}
               style={{ paddingHorizontal: 12, paddingVertical: 8, borderRadius: 999, backgroundColor: groupType === key ? colors.accent : colors.surface2 }}>
               <T v="small" style={{ color: groupType === key ? colors.onAccent : colors.text, fontFamily: fonts.bold }}>{name}</T>
             </Pressable>
@@ -109,7 +128,7 @@ export default function Profile() {
               options={[30, 45, 55, 60, 90].map((m) => ({ key: String(m), label: `${m}` }))} />
             <Button title={`Засчитать ${minutes} мин`} small onPress={logGroup} />
           </>
-        ) : null}
+        ) : groupNote ? <T v="small" style={{ color: colors.accent }}>{groupNote}</T> : null}
       </Card>
 
       <Pressable accessibilityRole="button" accessibilityLabel="Друзья" onPress={() => router.push('/friends')}>

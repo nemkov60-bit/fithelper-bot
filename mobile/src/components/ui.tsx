@@ -1,6 +1,6 @@
-import type { ReactNode } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import {
-  ActivityIndicator, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View,
+  ActivityIndicator, Keyboard, Pressable, RefreshControl, ScrollView, Text, View,
   type StyleProp, type TextStyle, type ViewStyle,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -39,6 +39,9 @@ export function Screen({ children, refreshing, onRefresh, bottomInset = 120, scr
     <SafeAreaView style={{ flex: 1, backgroundColor: colors.bg }} edges={['top']}>
       {scroll ? (
         <ScrollView
+          // handled: нажатие на кнопку при открытой клавиатуре срабатывает сразу, а не только закрывает клавиатуру
+          keyboardShouldPersistTaps="handled"
+          keyboardDismissMode="on-drag"
           contentContainerStyle={{ padding: 20, paddingBottom: bottomInset, gap: 14 }}
           showsVerticalScrollIndicator={false}
           refreshControl={onRefresh ? (
@@ -77,18 +80,45 @@ export function Card({ children, style, accent }: { children: ReactNode; style?:
   return <View style={[accent ? s.cardAccent : s.card, style]}>{children}</View>;
 }
 
-export function Button({ title, onPress, variant = 'primary', icon, disabled, loading, style, small }: {
-  title: string; onPress?: () => void; variant?: 'primary' | 'secondary' | 'ghost' | 'dark';
-  icon?: IconName; disabled?: boolean; loading?: boolean; style?: StyleProp<ViewStyle>; small?: boolean;
+// Кнопка. Если onPress возвращает промис — сама показывает загрузку и не даёт нажать дважды;
+// successTitle на пару секунд заменяет текст после успеха, при ошибке — «Не получилось, ещё раз».
+export function Button({ title, onPress, variant = 'primary', icon, disabled, loading, style, small, successTitle }: {
+  title: string; onPress?: () => unknown; variant?: 'primary' | 'secondary' | 'ghost' | 'dark';
+  icon?: IconName; disabled?: boolean; loading?: boolean; style?: StyleProp<ViewStyle>; small?: boolean; successTitle?: string;
 }) {
+  const [busy, setBusy] = useState(false);
+  const [flash, setFlash] = useState<string | null>(null);
+  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => () => { if (timer.current) clearTimeout(timer.current); }, []);
   const bg = variant === 'primary' ? colors.accent : variant === 'secondary' ? colors.surface2 : variant === 'dark' ? colors.bg : 'transparent';
   const fg = variant === 'primary' ? colors.onAccent : colors.text;
+  const show = (text: string) => {
+    setFlash(text);
+    if (timer.current) clearTimeout(timer.current);
+    timer.current = setTimeout(() => setFlash(null), 2200);
+  };
+  const press = async () => {
+    if (!onPress || busy) return;
+    Keyboard.dismiss();
+    const result = onPress();
+    if (result && typeof (result as Promise<unknown>).then === 'function') {
+      setBusy(true);
+      try {
+        await result;
+        if (successTitle) show(successTitle);
+      } catch {
+        show('Не получилось, ещё раз');
+      } finally {
+        setBusy(false);
+      }
+    }
+  };
   return (
     <Pressable
       accessibilityRole="button"
       accessibilityLabel={title}
-      disabled={disabled || loading}
-      onPress={onPress}
+      disabled={disabled || loading || busy}
+      onPress={press}
       style={({ pressed }) => [
         s.button,
         { backgroundColor: bg, height: small ? 44 : 58, opacity: disabled ? 0.45 : pressed ? 0.85 : 1 },
@@ -96,9 +126,9 @@ export function Button({ title, onPress, variant = 'primary', icon, disabled, lo
         style,
       ]}
     >
-      {loading ? <ActivityIndicator color={fg} /> : (
+      {loading || busy ? <ActivityIndicator color={fg} /> : (
         <>
-          <Text style={{ fontFamily: fonts.extrabold, fontSize: small ? 14 : 17, color: fg }}>{title}</Text>
+          <Text style={{ fontFamily: fonts.extrabold, fontSize: small ? 14 : 17, color: fg }}>{flash ?? title}</Text>
           {icon ? <Icon name={icon} size={20} color={fg} strokeWidth={2.4} /> : null}
         </>
       )}
