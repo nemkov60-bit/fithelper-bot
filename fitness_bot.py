@@ -53,7 +53,8 @@ if load_dotenv:
     load_dotenv(ROOT / '.env')
 
 # Все данные бота — в одной папке (на хостинге её можно вынести на постоянный диск через FITNESS_DATA_DIR).
-DATA_DIR = Path(os.environ.get('FITNESS_DATA_DIR', ROOT / 'data'))
+# DATA_DIR — переменная, которую задаёт BotHost для постоянной папки.
+DATA_DIR = Path(os.environ.get('FITNESS_DATA_DIR') or os.environ.get('DATA_DIR') or ROOT / 'data')
 DB_PATH = Path(os.environ.get('FITNESS_DB', DATA_DIR / 'fitness.db'))
 STATE_PATH = Path(os.environ.get('FITNESS_STATE', DATA_DIR / 'fitness_state.pickle'))
 
