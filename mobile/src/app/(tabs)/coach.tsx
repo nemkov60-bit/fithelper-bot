@@ -12,7 +12,8 @@ import { useAuth } from '../../lib/auth';
 import { colors, fonts } from '../../lib/theme';
 
 export default function Coach() {
-  const { meta } = useAuth();
+  const { me, meta } = useAuth();
+  const coachPhoto = meta?.photos?.[`coach_${me?.profile.gender === 'f' ? 'f' : 'm'}`];
   const [data, setData] = useState<CoachData | null>(null);
   const [error, setError] = useState('');
   const [tab, setTab] = useState<'up' | 'done'>('up');
@@ -34,7 +35,7 @@ export default function Coach() {
     return (
       <Screen>
         <T v="big">Мой тренер</T>
-        {meta?.photos?.coach_u ? <PhotoBanner url={meta.photos.coach_u} minHeight={190} label="Занятия с тренером" /> : null}
+        {coachPhoto ? <PhotoBanner url={coachPhoto} minHeight={190} label="Занятия с тренером" /> : null}
         <Card accent style={{ gap: 10, borderRadius: 28, padding: 20 }}>
           <T v="h2" style={{ color: colors.onAccent }}>Занимайся с тренером</T>
           <T style={{ color: colors.onAccent }}>

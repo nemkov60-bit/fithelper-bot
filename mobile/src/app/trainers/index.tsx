@@ -16,7 +16,8 @@ type Catalog = { trainers: TrainerCard[]; specializations: Record<string, string
 
 // Каталог тренеров: лучшие по рейтингу сверху, фильтры по специализации, формату и городу.
 export default function Trainers() {
-  const { meta } = useAuth();
+  const { me, meta } = useAuth();
+  const coachPhoto = meta?.photos?.[`coach_${me?.profile.gender === 'f' ? 'f' : 'm'}`];
   const [data, setData] = useState<Catalog | null>(null);
   const [error, setError] = useState('');
   const [spec, setSpec] = useState('');
@@ -45,7 +46,7 @@ export default function Trainers() {
         <IconButton icon="back" label="Назад" onPress={() => router.back()} />
         <T v="h1" style={{ flex: 1 }}>Тренеры</T>
       </View>
-      {meta?.photos?.coach_u ? <PhotoBanner url={meta.photos.coach_u} minHeight={170} label="Занятия с тренером" /> : null}
+      {coachPhoto ? <PhotoBanner url={coachPhoto} minHeight={170} label="Занятия с тренером" /> : null}
       <T v="small">Персональная программа, контроль техники и прогресса. Рейтинг — по оценкам подопечных.</T>
 
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8 }}>

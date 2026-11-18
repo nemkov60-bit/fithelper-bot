@@ -120,7 +120,7 @@ left half is a dark blurred gym background with no details (space for text). Sof
 along her silhouette, feeling of joy and achievement, shallow depth of field, cinematic color grading, horizontal 16:10,
 4K, no text, no logos or prints on clothing, no watermark, natural anatomy, detailed skin texture.
 
-## 6. Занятия с тренером `coach_u`
+## 6. Занятия с тренером — женская версия `coach_f`
 
 Где: раздел «Тренер» (карточка «Занимайся с тренером», пока тренера нет) и каталог тренеров.
 
@@ -142,6 +142,28 @@ professional support. People in the right half of the frame, the left half is a 
 no details (space for text). Soft key light, lime-green rim light along their silhouettes, shallow depth of field,
 cinematic color grading, horizontal 16:10, 4K, no text, no logos or prints on clothing, no watermark, natural anatomy,
 detailed skin texture.
+
+## 6а. Занятия с тренером — мужская версия `coach_m`
+
+Где: тот же экран для мужчин. Тот же тренер, клиент — мужчина с главной.
+
+**RU:** Фотореалистичный рекламный снимок для фитнес-приложения: персональный тренер — мужчина 32 лет, короткая
+стрижка, аккуратная борода, однотонная чёрная футболка — страхует мужчину 27 лет (тёмно-каштановые волнистые волосы,
+лёгкая щетина, однотонная тёмно-графитовая майка), который выполняет жим гантелей лёжа на наклонной скамье в
+современном тёмном зале. Тренер стоит за скамьёй, ладони рядом с его локтями, внимательно смотрит на технику и
+подбадривает, клиент сосредоточен. Атмосфера доверия и профессиональной поддержки. Люди в правой половине кадра,
+левая половина — тёмный размытый фон зала без деталей (место для текста). Мягкий ключевой свет, лаймово-зелёный
+контровой свет по контурам фигур, малая глубина резкости, кинематографичная цветокоррекция, горизонтальный кадр
+16:10, разрешение 4K, без текста, без логотипов и надписей на одежде, без водяных знаков, естественная анатомия,
+детализированная текстура кожи.
+
+**EN:** Photorealistic commercial photo for a fitness app: a personal trainer — man aged 32, short haircut, neat beard,
+plain black t-shirt — spotting a man aged 27 (dark brown wavy hair, light stubble, plain dark graphite tank top) who is
+doing an incline dumbbell press on a bench in a modern dark gym. The trainer stands behind the bench, palms near his
+elbows, watching his form attentively and encouraging him; the client is focused. Atmosphere of trust and professional
+support. People in the right half of the frame, the left half is a dark blurred gym background with no details (space
+for text). Soft key light, lime-green rim light along their silhouettes, shallow depth of field, cinematic color grading,
+horizontal 16:10, 4K, no text, no logos or prints on clothing, no watermark, natural anatomy, detailed skin texture.
 
 ## 7. Тренируйся с другом `friends_u`
 
