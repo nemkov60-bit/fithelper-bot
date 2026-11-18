@@ -4,3 +4,4 @@ fastapi==0.115.6
 uvicorn==0.32.1
 pillow>=10.4
 qrcode==8.2
+PyJWT[crypto]==2.10.1

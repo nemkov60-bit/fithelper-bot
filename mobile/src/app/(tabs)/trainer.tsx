@@ -147,7 +147,7 @@ export default function Trainer() {
             <TextInput value={newLabel} onChangeText={setNewLabel} placeholder="Instagram, зал на Ленина…" placeholderTextColor={colors.muted}
               accessibilityLabel="Название ссылки" maxLength={40}
               style={{ flex: 1, minWidth: 0, height: 48, borderRadius: 14, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.bg, color: colors.text, paddingHorizontal: 14, fontFamily: fonts.semibold, fontSize: 15 }} />
-            <Button title="Создать" small onPress={createLink} />
+            <Button title="Создать" small disabled={!newLabel.trim()} onPress={createLink} />
           </View>
         </Card>
       ) : null}

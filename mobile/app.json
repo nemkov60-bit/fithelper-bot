@@ -11,6 +11,10 @@
       "bundleIdentifier": "app.fithelper",
       "config": {
         "usesNonExemptEncryption": false
+      },
+      "usesAppleSignIn": true,
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
       }
     },
     "android": {
@@ -21,7 +25,8 @@
         "monochromeImage": "./assets/android-icon-monochrome.png"
       },
       "predictiveBackGestureEnabled": false,
-      "package": "app.fithelper"
+      "package": "app.fithelper",
+      "permissions": []
     },
     "web": {
       "favicon": "./assets/favicon.png",
@@ -38,7 +43,8 @@
       "expo-secure-store",
       "expo-web-browser",
       "expo-font",
-      "expo-sharing"
+      "expo-sharing",
+      "expo-apple-authentication"
     ],
     "scheme": "fithelper",
     "backgroundColor": "#0E0F0F",

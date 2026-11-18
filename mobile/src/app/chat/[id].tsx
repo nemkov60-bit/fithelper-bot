@@ -8,6 +8,7 @@ import { TrainerAvatar } from '../../components/TrainerAvatar';
 import { ErrorBox, IconButton, Loading, T } from '../../components/ui';
 import { api, type Chat, type ChatMessage } from '../../lib/api';
 import { colors, fonts } from '../../lib/theme';
+import { goBack } from '../../lib/nav';
 
 const MONTHS = ['января', 'февраля', 'марта', 'апреля', 'мая', 'июня', 'июля', 'августа', 'сентября', 'октября', 'ноября', 'декабря'];
 
@@ -86,7 +87,7 @@ export default function ChatScreen() {
       {/* Шапка */}
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 16, paddingTop: insets.top + 10, paddingBottom: 12,
         borderBottomWidth: 1, borderBottomColor: colors.border, backgroundColor: colors.bg }}>
-        <IconButton icon="back" label="Назад" onPress={() => router.back()} />
+        <IconButton icon="back" label="Назад" onPress={() => goBack(chat?.peer.role === 'client' ? '/trainer' : '/coach')} />
         <Pressable style={{ flex: 1, flexDirection: 'row', alignItems: 'center', gap: 10 }} accessibilityRole="button"
           onPress={() => router.push(isTrainer ? `/trainers/${peer.id}` : `/trainer/client/${peer.id}`)}>
           <TrainerAvatar name={peer.name} url={peer.photo_url} size={42} />

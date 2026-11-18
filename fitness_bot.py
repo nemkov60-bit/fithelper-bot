@@ -790,6 +790,8 @@ def init_db():
         CREATE TABLE IF NOT EXISTS body_measurements(
             id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER, chest REAL, waist REAL, hips REAL, arm REAL,
             thigh REAL, created_at TEXT);
+        CREATE TABLE IF NOT EXISTS auth_identities(
+            provider TEXT, subject TEXT, user_id INTEGER, email TEXT, created_at TEXT, PRIMARY KEY(provider, subject));
         CREATE TABLE IF NOT EXISTS login_codes(
             code TEXT PRIMARY KEY, user_id INTEGER, created_at TEXT);
         CREATE TABLE IF NOT EXISTS api_sessions(
@@ -3302,6 +3304,46 @@ def is_trainer(user):
 
 def display_name(user, fallback='Пользователь'):
     return (user or {}).get('name') or fallback
+
+
+def identity_user(provider, subject, name='', email=None):
+    """Пользователь, вошедший не через Telegram (например, «Войти с Apple»). У таких аккаунтов
+    отрицательный ID, чтобы не пересечься с ID Telegram; уведомления бота им просто не приходят."""
+    with connect() as c:
+        row = c.execute('SELECT user_id FROM auth_identities WHERE provider=? AND subject=?', (provider, subject)).fetchone()
+        if row and get_user(row[0]):
+            return row[0]
+        uid = min(-1000, (c.execute('SELECT MIN(user_id) FROM users').fetchone()[0] or 0)) - 1
+        c.execute('INSERT OR REPLACE INTO auth_identities(provider, subject, user_id, email, created_at) VALUES(?,?,?,?,?)',
+                  (provider, subject, uid, email, now().isoformat(timespec='seconds')))
+    ensure_user_row(uid, name or '')
+    return uid
+
+
+def delete_account(uid):
+    """Удаляет аккаунт и все личные данные. Записи об оплатах и выплатах остаются обезличенными —
+    их требуется хранить для бухгалтерии."""
+    end_pair(uid)
+    with connect() as c:
+        wids = [r[0] for r in c.execute('SELECT id FROM workouts WHERE user_id=?', (uid,))]
+        for wid in wids:
+            c.execute('DELETE FROM sets WHERE workout_id=?', (wid,))
+            c.execute('DELETE FROM cardio WHERE workout_id=?', (wid,))
+        for table, cols in {
+            'workouts': ['user_id'], 'sets': ['user_id'], 'cardio': ['user_id'], 'body_weight': ['user_id'],
+            'body_measurements': ['user_id'], 'exercise_goals': ['user_id'], 'cycle_log': ['user_id'],
+            'user_swaps': ['user_id'], 'assignments': ['client_id', 'trainer_id'], 'messages': ['from_id', 'to_id'],
+            'api_sessions': ['user_id'], 'login_codes': ['user_id'], 'trainer_profiles': ['user_id'],
+            'trainer_photos': ['user_id'], 'reviews': ['client_id', 'trainer_id'], 'coach_requests': ['client_id', 'trainer_id'],
+            'coaching': ['client_id', 'trainer_id'], 'auth_identities': ['user_id'], 'ref_links': ['trainer_id'],
+            'trainer_requisites': ['user_id'], 'pairs': ['a_id', 'b_id'],
+        }.items():
+            for col in cols:
+                c.execute(f'DELETE FROM {table} WHERE {col}=?', (uid,))
+        c.execute('UPDATE users SET trainer_id=NULL WHERE trainer_id=?', (uid,))
+        c.execute('UPDATE users SET referred_by=NULL WHERE referred_by=?', (uid,))
+        c.execute('UPDATE users SET invited_by=NULL WHERE invited_by=?', (uid,))
+        c.execute('DELETE FROM users WHERE user_id=?', (uid,))
 
 
 def ensure_user_row(uid, name):

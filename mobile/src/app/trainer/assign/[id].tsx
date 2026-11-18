@@ -6,6 +6,7 @@ import { Button, Card, Chip, ErrorBox, IconButton, Loading, Screen, T } from '..
 import { api } from '../../../lib/api';
 import { colors, fonts } from '../../../lib/theme';
 import type { BuilderItem, Catalog, CatalogExercise, ClientCard } from '../../../lib/trainer';
+import { goBack } from '../../../lib/nav';
 
 const REPS = [[5, 5], [6, 8], [8, 10], [10, 12], [12, 15], [15, 20]];
 const SECS = [[30, 30], [45, 45], [60, 60], [30, 60]];
@@ -64,7 +65,7 @@ export default function Assign() {
     setSaving(true);
     try {
       await api(`/api/trainer/clients/${id}/assignments`, { body: { date, title, note, items } });
-      router.back();
+      goBack(`/trainer/client/${id}`);
     } catch (e: any) {
       setError(e?.message ?? 'Не удалось назначить');
     } finally {
@@ -75,7 +76,7 @@ export default function Assign() {
   return (
     <Screen bottomInset={40}>
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
-        <IconButton icon="back" label="Назад" onPress={() => router.back()} />
+        <IconButton icon="back" label="Назад" onPress={() => goBack(`/trainer/client/${id}`)} />
         <View style={{ flex: 1 }}>
           <T v="h2">Новая тренировка</T>
           <T v="small" style={{ fontSize: 12 }}>для {client.name}</T>

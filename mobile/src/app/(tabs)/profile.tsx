@@ -1,10 +1,11 @@
 import { router } from 'expo-router';
 import { useState } from 'react';
-import { Pressable, TextInput, View } from 'react-native';
+import { Alert, Platform, Pressable, TextInput, View } from 'react-native';
 
 import { Button, Card, Screen, Segmented, T } from '../../components/ui';
 import { api } from '../../lib/api';
 import { useAuth } from '../../lib/auth';
+import { openPrivacy } from '../../lib/links';
 import { IOS_STORE } from '../../lib/platform';
 import { colors, fonts, THEME_NAMES, THEMES } from '../../lib/theme';
 import { useTheme } from '../../lib/themeContext';
@@ -162,7 +163,29 @@ export default function Profile() {
       )}
 
       <Button title="Выйти" variant="ghost" small onPress={async () => { await signOut(); router.replace('/login'); }} />
+      <View style={{ flexDirection: 'row', justifyContent: 'center', gap: 20 }}>
+        <Pressable accessibilityRole="link" onPress={openPrivacy}>
+          <T v="small" style={{ textDecorationLine: 'underline' }}>Конфиденциальность</T>
+        </Pressable>
+        <Pressable accessibilityRole="button" accessibilityLabel="Удалить аккаунт" onPress={() => confirmDelete(async () => {
+          await api('/api/me', { method: 'DELETE' });
+          await signOut();
+          router.replace('/login');
+        })}>
+          <T v="small" style={{ color: colors.danger, textDecorationLine: 'underline' }}>Удалить аккаунт</T>
+        </Pressable>
+      </View>
       <T v="small" style={{ textAlign: 'center', fontSize: 11 }}>Версия сервера: {me.version}</T>
     </Screen>
   );
+}
+
+// Удаление аккаунта — с подтверждением (требование App Store и Google Play).
+function confirmDelete(onYes: () => void) {
+  const text = 'Аккаунт и все данные — тренировки, вес, объёмы, переписка — будут удалены навсегда. Восстановить их нельзя.';
+  if (Platform.OS === 'web') {
+    if (globalThis.confirm?.(`Удалить аккаунт?\n\n${text}`)) onYes();
+    return;
+  }
+  Alert.alert('Удалить аккаунт?', text, [{ text: 'Отмена', style: 'cancel' }, { text: 'Удалить', style: 'destructive', onPress: onYes }]);
 }

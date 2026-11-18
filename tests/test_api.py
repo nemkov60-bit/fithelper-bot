@@ -497,3 +497,30 @@ class CabinetButtonsTests(unittest.TestCase):
         self.assertIn('📥 Заявки (1)', texts())
         self.assertIn('📇 Профиль в каталоге', texts())
         self.assertIn('Тебя пока нет в каталоге', fb.catalog_profile_text(fb.get_user(9701)))
+
+
+class AppleAndDeleteTests(unittest.TestCase):
+    def test_apple_login_and_delete(self):
+        client = TestClient(api.create_app())
+        saved = api.verify_apple_token
+        api.verify_apple_token = lambda token: {'sub': 'apple-001', 'email': 'x@privaterelay.appleid.com'} if token == 'good' else (_ for _ in ()).throw(api.HTTPException(401, 'bad'))
+        try:
+            self.assertEqual(client.post('/api/auth/apple', json={'identity_token': 'bad'}).status_code, 401)
+            r = client.post('/api/auth/apple', json={'identity_token': 'good', 'given_name': 'Ева'}).json()
+            uid = r['me']['id']
+            self.assertLess(uid, 0)
+            self.assertEqual(r['me']['name'], 'Ева')
+            # повторный вход — тот же аккаунт
+            self.assertEqual(client.post('/api/auth/apple', json={'identity_token': 'good'}).json()['me']['id'], uid)
+        finally:
+            api.verify_apple_token = saved
+        h = {'Authorization': f'Bearer {r["token"]}'}
+        client.put('/api/me/profile', json=PROFILE, headers=h)
+        client.post('/api/body-weight', json={'weight': 70}, headers=h)
+        client.post('/api/measurements', json={'waist': 80}, headers=h)
+        self.assertEqual(client.delete('/api/me', headers=h).json(), {'ok': True})
+        self.assertIsNone(fb.get_user(uid))
+        self.assertEqual(fb.body_weights(uid), [])
+        self.assertEqual(fb.measurements(uid), [])
+        self.assertEqual(client.get('/api/me', headers=h).status_code, 401)
+        self.assertIn('Политика конфиденциальности', client.get('/privacy').text)

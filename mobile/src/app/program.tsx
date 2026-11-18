@@ -5,6 +5,7 @@ import { Pressable, View } from 'react-native';
 import { Badge, Button, Card, ErrorBox, IconButton, Loading, Screen, Segmented, T } from '../components/ui';
 import { api } from '../lib/api';
 import { colors, fonts } from '../lib/theme';
+import { goBack } from '../lib/nav';
 
 type Program = {
   place: string;
@@ -33,7 +34,7 @@ export default function ProgramScreen() {
   return (
     <Screen bottomInset={40}>
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
-        <IconButton icon="back" label="Назад" onPress={() => router.back()} />
+        <IconButton icon="back" label="Назад" onPress={() => goBack('/home')} />
         <T v="h1">Программа</T>
       </View>
       <Segmented label="Место" value={data.place} onChange={(p) => setPlace(p)}

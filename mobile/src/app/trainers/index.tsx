@@ -11,6 +11,7 @@ import { useAuth } from '../../lib/auth';
 import { plural, REVIEWS, YEARS } from '../../lib/format';
 import { colors, fonts } from '../../lib/theme';
 import type { TrainerCard } from '../../lib/trainer';
+import { goBack } from '../../lib/nav';
 
 type Catalog = { trainers: TrainerCard[]; specializations: Record<string, string>; my_requests: number[] };
 
@@ -43,7 +44,7 @@ export default function Trainers() {
   return (
     <Screen bottomInset={40}>
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
-        <IconButton icon="back" label="Назад" onPress={() => router.back()} />
+        <IconButton icon="back" label="Назад" onPress={() => goBack('/coach')} />
         <T v="h1" style={{ flex: 1 }}>Тренеры</T>
       </View>
       {coachPhoto ? <PhotoBanner url={coachPhoto} minHeight={170} label="Занятия с тренером" /> : null}

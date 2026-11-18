@@ -2,7 +2,7 @@
 // мобильная сборка — на адрес из EXPO_PUBLIC_API_URL.
 import { Platform } from 'react-native';
 
-export const API_URL = (process.env.EXPO_PUBLIC_API_URL ?? (Platform.OS === 'web' ? '' : 'http://localhost:8080')).replace(/\/$/, '');
+export const API_URL = (process.env.EXPO_PUBLIC_API_URL ?? (Platform.OS === 'web' ? '' : 'https://bot-1794333236-6615-nemkoff-23.bothost.tech')).replace(/\/$/, '');
 
 let token: string | null = null;
 let onUnauthorized: (() => void) | null = null;

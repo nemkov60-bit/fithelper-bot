@@ -19,6 +19,7 @@ export default function Progress() {
   const [error, setError] = useState('');
   const [period, setPeriod] = useState<Period>('3m');
   const [weightInput, setWeightInput] = useState('');
+  const [weightError, setWeightError] = useState('');
   const [saving, setSaving] = useState(false);
 
   const load = useCallback(async () => {
@@ -44,7 +45,11 @@ export default function Progress() {
 
   const saveWeight = async () => {
     const value = parseFloat(weightInput.replace(',', '.'));
-    if (!(value >= 20 && value <= 400)) return;
+    if (!(value >= 20 && value <= 400)) {
+      setWeightError('Введи вес числом, например 78,4');
+      throw new Error('invalid');
+    }
+    setWeightError('');
     setSaving(true);
     try {
       await api('/api/body-weight', { body: { weight: value } });
@@ -80,11 +85,12 @@ export default function Progress() {
       <Card style={{ gap: 10 }}>
         <T v="h3">Записать вес</T>
         <View style={{ flexDirection: 'row', gap: 8 }}>
-          <TextInput value={weightInput} onChangeText={setWeightInput} keyboardType="decimal-pad" placeholder="Например, 78,4"
+          <TextInput value={weightInput} onChangeText={(v) => { setWeightInput(v); setWeightError(''); }} keyboardType="decimal-pad" placeholder="Например, 78,4"
             placeholderTextColor={colors.muted} accessibilityLabel="Вес тела в килограммах"
             style={{ flex: 1, minWidth: 0, height: 48, borderRadius: 14, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.bg, color: colors.text, paddingHorizontal: 14, fontFamily: fonts.semibold, fontSize: 15 }} />
-          <Button title="Сохранить" small onPress={saveWeight} loading={saving} />
+          <Button title="Сохранить" small successTitle="Записано ✓" onPress={saveWeight} loading={saving} />
         </View>
+        {weightError ? <T v="small" style={{ color: colors.danger }}>{weightError}</T> : null}
       </Card>
 
       {data.body_weight.length > 1 ? (

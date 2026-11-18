@@ -189,6 +189,29 @@ def me_json(user):
 # Модели запросов
 # ======================================================================
 
+class AppleIn(BaseModel):
+    identity_token: str = Field(max_length=5000)
+    given_name: str | None = Field(default=None, max_length=60)
+    family_name: str | None = Field(default=None, max_length=60)
+
+
+_apple_keys = None
+
+
+def verify_apple_token(token):
+    """Проверка identity token от «Войти с Apple»: подпись ключами Apple, издатель и наш bundle id."""
+    global _apple_keys
+    import jwt
+    if _apple_keys is None:
+        _apple_keys = jwt.PyJWKClient('https://appleid.apple.com/auth/keys', cache_keys=True)
+    try:
+        key = _apple_keys.get_signing_key_from_jwt(token).key
+        return jwt.decode(token, key, algorithms=['RS256'], issuer='https://appleid.apple.com',
+                          audience=os.environ.get('APPLE_BUNDLE_ID', 'app.fithelper'))
+    except Exception as e:  # noqa: BLE001 — любая ошибка проверки = отказ во входе
+        raise HTTPException(401, 'Не удалось подтвердить вход через Apple') from e
+
+
 class LoginPoll(BaseModel):
     code: str
 
@@ -355,6 +378,24 @@ def create_app(bot=None):
         if not token:
             return {'status': 'pending'}
         return {'status': 'ok', 'token': token, 'me': me_json(fb.get_user(uid))}
+
+    @app.post('/api/auth/apple')
+    def auth_apple(body: AppleIn):
+        """«Войти с Apple»: проверяем подпись identity token ключами Apple и выдаём сессию."""
+        claims = verify_apple_token(body.identity_token)
+        name = ' '.join(x for x in (body.given_name, body.family_name) if x).strip()
+        uid = fb.identity_user('apple', claims['sub'], name, claims.get('email'))
+        token = create_session(uid)
+        return {'status': 'ok', 'token': token, 'me': me_json(fb.get_user(uid))}
+
+    @app.delete('/api/me')
+    def delete_me(user=Depends(current_user)):
+        fb.delete_account(user['user_id'])
+        return {'ok': True}
+
+    @app.get('/privacy')
+    def privacy():
+        return FileResponse(Path(__file__).resolve().parent / 'privacy.html', media_type='text/html; charset=utf-8')
 
     @app.post('/api/auth/logout')
     def auth_logout(authorization: str = Header(default='')):

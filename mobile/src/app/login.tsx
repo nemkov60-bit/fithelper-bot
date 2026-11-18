@@ -1,11 +1,13 @@
+import * as AppleAuthentication from 'expo-apple-authentication';
 import { router } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
-import { Linking, Platform, View } from 'react-native';
+import { Linking, Platform, Pressable, View } from 'react-native';
 
 import { PhotoBanner } from '../components/PhotoBanner';
 import { Button, Card, Screen, T } from '../components/ui';
 import { api, type Me } from '../lib/api';
 import { useAuth } from '../lib/auth';
+import { openPrivacy } from '../lib/links';
 import { colors } from '../lib/theme';
 
 // Вход через Telegram: приложение получает код, пользователь подтверждает его в боте,
@@ -44,6 +46,28 @@ export default function Login() {
         // сеть мигнула — попробуем на следующем тике
       }
     }, 2000);
+  };
+
+  // «Войти с Apple» — только в приложении для iPhone (требование App Store при входе через сторонний сервис).
+  const [appleAvailable, setAppleAvailable] = useState(false);
+  useEffect(() => {
+    if (Platform.OS === 'ios') AppleAuthentication.isAvailableAsync().then(setAppleAvailable).catch(() => {});
+  }, []);
+  const signInWithApple = async () => {
+    setError('');
+    try {
+      const cred = await AppleAuthentication.signInAsync({
+        requestedScopes: [AppleAuthentication.AppleAuthenticationScope.FULL_NAME, AppleAuthentication.AppleAuthenticationScope.EMAIL],
+      });
+      if (!cred.identityToken) throw new Error('no token');
+      const r = await api<{ token: string; me: Me }>('/api/auth/apple', {
+        body: { identity_token: cred.identityToken, given_name: cred.fullName?.givenName ?? null, family_name: cred.fullName?.familyName ?? null },
+      });
+      await signIn(r.token, r.me);
+      router.replace(r.me.profile_complete ? '/home' : '/onboarding');
+    } catch (e: any) {
+      if (e?.code !== 'ERR_REQUEST_CANCELED') setError('Не удалось войти через Apple. Попробуй ещё раз.');
+    }
   };
 
   const start = async () => {
@@ -100,8 +124,17 @@ export default function Login() {
             {url ? <Button title="Открыть бота ещё раз" variant="ghost" small onPress={() => (Platform.OS === 'web' ? globalThis.open?.(url, '_blank') : Linking.openURL(url))} /> : null}
           </View>
         ) : null}
+        {appleAvailable ? (
+          <AppleAuthentication.AppleAuthenticationButton
+            buttonType={AppleAuthentication.AppleAuthenticationButtonType.SIGN_IN}
+            buttonStyle={AppleAuthentication.AppleAuthenticationButtonStyle.WHITE}
+            cornerRadius={29} style={{ height: 58, width: '100%' }} onPress={signInWithApple} />
+        ) : null}
         {error ? <T v="small" style={{ color: colors.danger }}>{error}</T> : null}
       </Card>
+      <Pressable accessibilityRole="link" onPress={() => openPrivacy()}>
+        <T v="small" style={{ textAlign: 'center', textDecorationLine: 'underline' }}>Политика конфиденциальности</T>
+      </Pressable>
     </Screen>
   );
 }

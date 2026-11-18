@@ -5,6 +5,7 @@ import { View } from 'react-native';
 import { Card, ErrorBox, IconButton, Loading, Screen, T } from '../components/ui';
 import { api, type HistoryItem } from '../lib/api';
 import { colors, fonts } from '../lib/theme';
+import { goBack } from '../lib/nav';
 
 export default function History() {
   const [items, setItems] = useState<HistoryItem[] | null>(null);
@@ -21,7 +22,7 @@ export default function History() {
   return (
     <Screen bottomInset={40}>
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
-        <IconButton icon="back" label="Назад" onPress={() => router.back()} />
+        <IconButton icon="back" label="Назад" onPress={() => goBack('/progress')} />
         <T v="h1">История</T>
       </View>
       {items.length === 0 ? <Card><T v="small">Тренировок пока нет.</T></Card> : null}

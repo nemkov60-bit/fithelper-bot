@@ -10,6 +10,7 @@ import { plural } from '../lib/format';
 import { IOS_STORE } from '../lib/platform';
 import { shareCard, shareLink } from '../lib/share';
 import { colors, fonts } from '../lib/theme';
+import { goBack } from '../lib/nav';
 
 type Friends = {
   invite_url: string; pair_url: string; friend_days: number; inviter_days: number;
@@ -68,7 +69,7 @@ export default function FriendsScreen() {
   return (
     <Screen bottomInset={40}>
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
-        <IconButton icon="back" label="Назад" onPress={() => router.back()} />
+        <IconButton icon="back" label="Назад" onPress={() => goBack('/profile')} />
         <T v="h1" style={{ flex: 1 }}>Друзья</T>
       </View>
       {notice ? <Card style={{ backgroundColor: colors.surface2 }}><T v="small" style={{ color: colors.accent }}>{notice}</T></Card> : null}

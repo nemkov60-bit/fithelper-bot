@@ -9,6 +9,7 @@ import { api } from '../../lib/api';
 import { useAuth } from '../../lib/auth';
 import { colors, fonts } from '../../lib/theme';
 import type { TrainerProfile } from '../../lib/trainer';
+import { goBack } from '../../lib/nav';
 
 const inputStyle = () => ({
   minWidth: 0, height: 48, borderRadius: 14, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.bg,
@@ -63,7 +64,7 @@ export default function TrainerProfileScreen() {
   return (
     <Screen bottomInset={40}>
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
-        <IconButton icon="back" label="Назад" onPress={() => router.back()} />
+        <IconButton icon="back" label="Назад" onPress={() => goBack('/trainer')} />
         <T v="h1" style={{ flex: 1 }}>Профиль в каталоге</T>
       </View>
       <T v="small">Так тебя увидят пользователи, которые ищут тренера. Без текста «О себе» профиль в каталоге не показывается.</T>

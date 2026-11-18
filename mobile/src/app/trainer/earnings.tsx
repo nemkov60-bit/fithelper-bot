@@ -7,6 +7,7 @@ import { api } from '../../lib/api';
 import { rub } from '../../lib/format';
 import { colors, fonts } from '../../lib/theme';
 import type { Earnings } from '../../lib/trainer';
+import { goBack } from '../../lib/nav';
 
 const inputStyle = () => ({
   minWidth: 0, height: 48, borderRadius: 14, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.bg,
@@ -73,7 +74,7 @@ export default function EarningsScreen() {
   return (
     <Screen bottomInset={40}>
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
-        <IconButton icon="back" label="Назад" onPress={() => router.back()} />
+        <IconButton icon="back" label="Назад" onPress={() => goBack('/trainer')} />
         <T v="h1" style={{ flex: 1 }}>Начисления</T>
       </View>
 

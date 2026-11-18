@@ -5,6 +5,7 @@ import { Image, ScrollView, View } from 'react-native';
 import { Card, ErrorBox, IconButton, Loading, Screen, T } from '../../components/ui';
 import { api, photoUrl, type Exercise } from '../../lib/api';
 import { colors, fonts } from '../../lib/theme';
+import { goBack } from '../../lib/nav';
 
 // «📖 Техника»: фото кадров + понятное описание.
 export default function ExerciseScreen() {
@@ -24,7 +25,7 @@ export default function ExerciseScreen() {
   return (
     <Screen bottomInset={40}>
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
-        <IconButton icon="back" label="Назад" onPress={() => router.back()} />
+        <IconButton icon="back" label="Назад" onPress={() => goBack('/home')} />
         <T v="small" style={{ flex: 1 }}>{ex.group_name}{t.secondary ? `, ${t.secondary}` : ''}</T>
       </View>
       <T v="h1">{ex.name}</T>

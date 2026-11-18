@@ -10,6 +10,7 @@ import { onPhoto, PhotoBanner } from '../components/PhotoBanner';
 import { api, type CardioInfo, type DayPlan, type PlannedExercise } from '../lib/api';
 import { useAuth } from '../lib/auth';
 import { colors, fonts } from '../lib/theme';
+import { goBack } from '../lib/nav';
 
 type Stage = 'warmup' | 'main' | 'cooldown' | 'summary';
 type LoggedSet = { weight: number; reps: number };
@@ -87,7 +88,7 @@ export default function Workout() {
     try {
       const r = await api<Summary>(`/api/workouts/${wid}/finish`, { body: { assignment_id: assignmentId } });
       if (r.cancelled) {
-        router.back();
+        goBack('/home');
         return;
       }
       setSummary(r);
@@ -102,7 +103,7 @@ export default function Workout() {
   const groups = useMemo(() => [...new Set(plan?.exercises.map((e) => e.group) ?? [])].join(','), [plan]);
 
   if (error) {
-    return <Screen><Card style={{ gap: 12 }}><T>{error}</T><Button title="Назад" variant="secondary" onPress={() => router.back()} /></Card></Screen>;
+    return <Screen><Card style={{ gap: 12 }}><T>{error}</T><Button title="Назад" variant="secondary" onPress={() => goBack('/home')} /></Card></Screen>;
   }
   if (!plan || !wid) return <Loading />;
 
@@ -116,7 +117,7 @@ export default function Workout() {
           await finish();
         } else {
           await api(`/api/workouts/${wid}`, { method: 'DELETE' }).catch(() => undefined);
-          router.back();
+          goBack('/home');
         }
       })} />
       <View style={{ alignItems: 'center', flex: 1 }}>

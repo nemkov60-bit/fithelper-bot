@@ -9,6 +9,7 @@ import { api } from '../../../lib/api';
 import { useAuth } from '../../../lib/auth';
 import { colors, fonts } from '../../../lib/theme';
 import type { ClientCard } from '../../../lib/trainer';
+import { goBack } from '../../../lib/nav';
 
 const fmt = (n: number) => String(Math.round(n * 10) / 10).replace('.', ',');
 
@@ -49,7 +50,7 @@ export default function ClientScreen() {
   return (
     <Screen bottomInset={40}>
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
-        <IconButton icon="back" label="Назад" onPress={() => router.back()} />
+        <IconButton icon="back" label="Назад" onPress={() => goBack('/trainer')} />
         <View style={{ flex: 1 }}>
           <T v="h2">{c.name}</T>
           <T v="small" style={{ fontSize: 12 }}>{c.subscription_until ? `Подписка до ${c.subscription_until.split('-').reverse().join('.')}` : 'Без подписки'}</T>

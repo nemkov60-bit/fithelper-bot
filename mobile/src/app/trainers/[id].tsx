@@ -11,6 +11,7 @@ import { useAuth } from '../../lib/auth';
 import { IOS_STORE } from '../../lib/platform';
 import { colors, fonts } from '../../lib/theme';
 import type { TrainerDetail } from '../../lib/trainer';
+import { goBack } from '../../lib/nav';
 
 const inputStyle = () => ({
   minWidth: 0, borderRadius: 14, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.bg, color: colors.text,
@@ -76,7 +77,7 @@ export default function TrainerScreen() {
   return (
     <Screen bottomInset={40}>
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
-        <IconButton icon="back" label="Назад" onPress={() => router.back()} />
+        <IconButton icon="back" label="Назад" onPress={() => goBack('/trainers')} />
         <T v="small" style={{ flex: 1 }}>Профиль тренера</T>
       </View>
 
