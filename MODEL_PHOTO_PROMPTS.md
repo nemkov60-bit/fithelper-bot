@@ -78,69 +78,91 @@ detailed skin texture.
 
 ## 4. Тренировка завершена — мужская версия `done_m`
 
-Где: итоговый экран после тренировки («Готово»).
+Где: итоговый экран после тренировки («Тренировка завершена!»). Тот же мужчина, что на главной.
 
-**RU:** Фотореалистичный снимок для фитнес-приложения: мужчина, фитнес-модель 25–29 лет, только что закончил
-тяжёлую тренировку, сидит на скамье в тёмном тренажёрном зале, довольная усталая улыбка, сжимает кулак в жесте
-победы, лёгкий пот, бутылка воды рядом. Модель в правой половине кадра, слева — тёмный размытый фон. Мягкий свет,
-лаймово-зелёный контровой свет, атмосфера достижения, малая глубина резкости, кинематографичная цветокоррекция,
-горизонтальный кадр 16:10, разрешение 4K, без текста, без логотипов и надписей на одежде, без водяных знаков,
-естественная анатомия, детализированная текстура кожи.
+**RU:** Фотореалистичный рекламный снимок для фитнес-приложения: мужчина, фитнес-модель 27 лет, тёмно-каштановые
+волнистые волосы, лёгкая щетина, атлетичное рельефное телосложение, однотонная тёмно-графитовая майка, полотенце
+на шее. Только что закончил тяжёлую тренировку: сидит на краю скамьи в современном тёмном тренажёрном зале, локти на
+коленях, довольная усталая улыбка, смотрит в камеру, лёгкий блеск пота на плечах, рядом на полу бутылка воды и гантели.
+Модель в правой половине кадра, левая половина — тёмный размытый фон зала без деталей (место для текста). Мягкий
+ключевой свет, лаймово-зелёный контровой свет по контуру плеч и рук, атмосфера заслуженной победы, малая глубина
+резкости, кинематографичная цветокоррекция, горизонтальный кадр 16:10, разрешение 4K, без текста, без логотипов
+и надписей на одежде, без водяных знаков, естественная анатомия, детализированная текстура кожи.
 
-**EN:** Photorealistic photo for a fitness app: a man, fitness model aged 25–29, just finished an intense workout,
-sitting on a bench in a dark gym, satisfied tired smile, clenched fist in a victory gesture, light sweat, water bottle
-nearby. Subject in the right half of the frame, dark blurred background on the left. Soft light, lime-green rim light,
-feeling of achievement, shallow depth of field, cinematic color grading, horizontal 16:10, 4K, no text, no logos or
-prints on clothing, no watermark, natural anatomy, detailed skin texture.
+**EN:** Photorealistic commercial photo for a fitness app: a man, fitness model aged 27, dark brown wavy hair, light
+stubble, athletic defined build, plain dark graphite tank top, towel around his neck. He has just finished a hard
+workout: sitting on the edge of a bench in a modern dark gym, elbows on his knees, satisfied tired smile, looking at
+the camera, light sheen of sweat on his shoulders, a water bottle and dumbbells on the floor nearby. Subject in the right
+half of the frame, the left half is a dark blurred gym background with no details (space for text). Soft key light,
+lime-green rim light along shoulders and arms, feeling of a well-earned victory, shallow depth of field, cinematic
+color grading, horizontal 16:10, 4K, no text, no logos or prints on clothing, no watermark, natural anatomy,
+detailed skin texture.
 
 ## 5. Тренировка завершена — женская версия `done_f`
 
-**RU:** Фотореалистичный снимок для фитнес-приложения: женщина, фитнес-модель 25–29 лет, только что закончила
-тренировку, стоит в тёмном тренажёрном зале с полотенцем на шее, радостная счастливая улыбка, поднимает руку
-в жесте «дай пять» в сторону камеры, лёгкий пот. Модель в правой половине кадра, слева — тёмный размытый фон.
-Мягкий тёплый свет, лаймово-зелёный контровой свет, атмосфера достижения, малая глубина резкости,
-кинематографичная цветокоррекция, горизонтальный кадр 16:10, разрешение 4K, без текста, без логотипов и надписей
-на одежде, без водяных знаков, естественная анатомия, детализированная текстура кожи.
+Где: тот же экран для девушек. Та же девушка, что на главной.
 
-**EN:** Photorealistic photo for a fitness app: a woman, fitness model aged 25–29, just finished a workout, standing in a
-dark gym with a towel around her neck, joyful happy smile, raising her hand toward the camera in a high-five gesture,
-light sweat. Subject in the right half of the frame, dark blurred background on the left. Soft warm light, lime-green
-rim light, feeling of achievement, shallow depth of field, cinematic color grading, horizontal 16:10, 4K, no text,
-no logos or prints on clothing, no watermark, natural anatomy, detailed skin texture.
+**RU:** Фотореалистичный рекламный снимок для фитнес-приложения: женщина, фитнес-модель 26 лет, длинные
+тёмно-каштановые волосы в высоком хвосте, подтянутая спортивная фигура, однотонный графитовый спортивный топ
+и леггинсы, светлое полотенце на шее. Только что закончила тренировку: стоит в современном тёмном тренажёрном зале,
+счастливо смеётся, одной рукой делает жест «yes» — сжатый кулак у плеча, другой придерживает полотенце, лёгкий блеск
+пота, взгляд в камеру. Модель в правой половине кадра, левая половина — тёмный размытый фон зала без деталей (место
+для текста). Мягкий тёплый ключевой свет, лаймово-зелёный контровой свет по контуру фигуры, атмосфера радости и
+достижения, малая глубина резкости, кинематографичная цветокоррекция, горизонтальный кадр 16:10, разрешение 4K,
+без текста, без логотипов и надписей на одежде, без водяных знаков, естественная анатомия, детализированная
+текстура кожи.
+
+**EN:** Photorealistic commercial photo for a fitness app: a woman, fitness model aged 26, long dark brown hair in a high
+ponytail, toned athletic figure, plain graphite sports bra and leggings, light towel around her neck. She has just
+finished a workout: standing in a modern dark gym, laughing happily, one hand making a "yes" fist pump near her shoulder,
+the other holding the towel, light sheen of sweat, looking at the camera. Subject in the right half of the frame, the
+left half is a dark blurred gym background with no details (space for text). Soft warm key light, lime-green rim light
+along her silhouette, feeling of joy and achievement, shallow depth of field, cinematic color grading, horizontal 16:10,
+4K, no text, no logos or prints on clothing, no watermark, natural anatomy, detailed skin texture.
 
 ## 6. Занятия с тренером `coach_u`
 
-Где: раздел «Тренер», карточка «Занимайся с тренером» (когда тренера ещё нет), и каталог тренеров.
+Где: раздел «Тренер» (карточка «Занимайся с тренером», пока тренера нет) и каталог тренеров.
 
-**RU:** Фотореалистичный снимок для фитнес-приложения: персональный тренер (мужчина 30–35 лет, однотонная тёмная
-футболка) страхует и поправляет технику девушки 25–29 лет, которая выполняет жим гантелей на наклонной скамье
-в тёмном современном зале. Тренер внимательно смотрит, рука рядом с её локтем, оба сосредоточены, атмосфера доверия
-и поддержки. Люди в правой половине кадра, слева — тёмный размытый фон. Мягкий свет, лаймово-зелёный контровой свет,
-малая глубина резкости, кинематографичная цветокоррекция, горизонтальный кадр 16:10, разрешение 4K, без текста,
-без логотипов и надписей на одежде, без водяных знаков, естественная анатомия, детализированная текстура кожи.
+**RU:** Фотореалистичный рекламный снимок для фитнес-приложения: персональный тренер — мужчина 32 лет, короткая
+стрижка, аккуратная борода, однотонная чёрная футболка — страхует девушку 26 лет (длинные тёмно-каштановые волосы
+в высоком хвосте, графитовый спортивный топ и леггинсы), которая выполняет жим гантелей лёжа на наклонной скамье
+в современном тёмном зале. Тренер стоит за скамьёй, ладони рядом с её локтями, внимательно смотрит на технику и
+подбадривает, девушка сосредоточена. Атмосфера доверия и профессиональной поддержки. Люди в правой половине кадра,
+левая половина — тёмный размытый фон зала без деталей (место для текста). Мягкий ключевой свет, лаймово-зелёный
+контровой свет по контурам фигур, малая глубина резкости, кинематографичная цветокоррекция, горизонтальный кадр
+16:10, разрешение 4K, без текста, без логотипов и надписей на одежде, без водяных знаков, естественная анатомия,
+детализированная текстура кожи.
 
-**EN:** Photorealistic photo for a fitness app: a personal trainer (man aged 30–35, plain dark t-shirt) spotting and
-correcting the form of a woman aged 25–29 doing an incline dumbbell press in a modern dark gym. The trainer watches
-attentively, hand near her elbow, both focused, atmosphere of trust and support. People in the right half of the
-frame, dark blurred background on the left. Soft light, lime-green rim light, shallow depth of field, cinematic color
-grading, horizontal 16:10, 4K, no text, no logos or prints on clothing, no watermark, natural anatomy, detailed skin texture.
+**EN:** Photorealistic commercial photo for a fitness app: a personal trainer — man aged 32, short haircut, neat beard,
+plain black t-shirt — spotting a woman aged 26 (long dark brown hair in a high ponytail, graphite sports bra and
+leggings) who is doing an incline dumbbell press on a bench in a modern dark gym. The trainer stands behind the bench,
+palms near her elbows, watching her form attentively and encouraging her; she is focused. Atmosphere of trust and
+professional support. People in the right half of the frame, the left half is a dark blurred gym background with
+no details (space for text). Soft key light, lime-green rim light along their silhouettes, shallow depth of field,
+cinematic color grading, horizontal 16:10, 4K, no text, no logos or prints on clothing, no watermark, natural anatomy,
+detailed skin texture.
 
 ## 7. Тренируйся с другом `friends_u`
 
-Где: экран «Друзья».
+Где: экран «Друзья» («Тренируйся с другом»). Та же пара, что на экране входа.
 
-**RU:** Фотореалистичный снимок для фитнес-приложения: двое друзей 25–29 лет, мужчина и женщина, в тёмном
-современном зале дают друг другу «пять» после тренировки, оба искренне смеются, однотонная графитовая спортивная
-одежда, лёгкий пот, атмосфера дружбы и поддержки. Люди в правой половине кадра, слева — тёмный размытый фон.
-Мягкий свет, лаймово-зелёный контровой свет, малая глубина резкости, кинематографичная цветокоррекция,
+**RU:** Фотореалистичный рекламный снимок для фитнес-приложения: двое друзей после совместной тренировки —
+мужчина 27 лет (тёмно-каштановые волнистые волосы, лёгкая щетина, графитовая футболка) и женщина 26 лет (длинные
+тёмно-каштановые волосы в высоком хвосте, графитовый спортивный топ и леггинсы) — в современном тёмном тренажёрном
+зале дают друг другу «пять» высоко в воздухе, оба искренне смеются, лёгкий блеск пота, энергия и азарт. Люди в правой
+половине кадра, левая половина — тёмный размытый фон зала без деталей (место для текста). Мягкий ключевой свет,
+лаймово-зелёный контровой свет по контурам фигур, малая глубина резкости, кинематографичная цветокоррекция,
 горизонтальный кадр 16:10, разрешение 4K, без текста, без логотипов и надписей на одежде, без водяных знаков,
 естественная анатомия, детализированная текстура кожи.
 
-**EN:** Photorealistic photo for a fitness app: two friends aged 25–29, a man and a woman, giving each other a high five
-after a workout in a modern dark gym, both laughing genuinely, plain graphite sportswear, light sweat, atmosphere of
-friendship and support. People in the right half of the frame, dark blurred background on the left. Soft light,
-lime-green rim light, shallow depth of field, cinematic color grading, horizontal 16:10, 4K, no text, no logos or
-prints on clothing, no watermark, natural anatomy, detailed skin texture.
+**EN:** Photorealistic commercial photo for a fitness app: two friends after a workout together — a man aged 27 (dark
+brown wavy hair, light stubble, graphite t-shirt) and a woman aged 26 (long dark brown hair in a high ponytail,
+graphite sports bra and leggings) — giving each other a high five up in the air in a modern dark gym, both laughing
+genuinely, light sheen of sweat, energy and excitement. People in the right half of the frame, the left half is a dark
+blurred gym background with no details (space for text). Soft key light, lime-green rim light along their silhouettes,
+shallow depth of field, cinematic color grading, horizontal 16:10, 4K, no text, no logos or prints on clothing,
+no watermark, natural anatomy, detailed skin texture.
 
 ---
 
