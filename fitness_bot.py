@@ -3540,22 +3540,38 @@ def save_app_photo(slot, gender, data, mime):
                   (slot, gender, data, mime, now().isoformat(timespec='seconds')))
 
 
+# Фото «из коробки» лежат в assets/photos/<ключ>.jpg; загруженное админом в боте их заменяет.
+BUNDLED_PHOTOS = Path(__file__).resolve().parent / 'assets' / 'photos'
+
+
+def bundled_photo(key):
+    path = BUNDLED_PHOTOS / f'{key}.jpg'
+    if key not in APP_PHOTOS or not path.is_file():
+        return None
+    import hashlib
+    data = path.read_bytes()
+    return {'data': data, 'mime': 'image/jpeg', 'updated_at': 'b' + hashlib.sha1(data).hexdigest()[:10]}
+
+
 def get_app_photo(slot, gender):
     with connect() as c:
         row = c.execute('SELECT data, mime, updated_at FROM app_photos WHERE slot=? AND gender=?', (slot, gender)).fetchone()
-    return dict(row) if row else None
+    return dict(row) if row else bundled_photo(f'{slot}_{gender}')
 
 
 def app_photo_version(slot, gender):
     with connect() as c:
         row = c.execute('SELECT updated_at FROM app_photos WHERE slot=? AND gender=?', (slot, gender)).fetchone()
-    return row[0] if row else None
+    if row:
+        return row[0]
+    b = bundled_photo(f'{slot}_{gender}')
+    return b['updated_at'] if b else None
 
 
 def app_photo_versions():
-    """{ключ: версия} всех загруженных фото."""
-    with connect() as c:
-        return {f'{r["slot"]}_{r["gender"]}': r['updated_at'] for r in c.execute('SELECT slot, gender, updated_at FROM app_photos')}
+    """{ключ: версия} всех доступных фото: загруженные админом и встроенные."""
+    out = {k: v for k in APP_PHOTOS if (v := app_photo_version(*_split(k)))}
+    return out
 
 
 def delete_app_photo(slot, gender):
@@ -3595,10 +3611,11 @@ def admin_hero_text():
 def admin_photo_slot(key):
     label, where = APP_PHOTOS[key]
     v = app_photo_version(*_split(key))
-    text = (f'<b>{label}</b>\nГде: {where}\nСтатус: ' + (f'✅ загружено {v[:10]}' if v else '— нет') +
+    status = ('✅ встроенное фото (можно заменить)' if v and v.startswith('b') else f'✅ загружено {v[:10]}' if v else '— нет')
+    text = (f'<b>{label}</b>\nГде: {where}\nСтатус: {status}' +
             f'\n\n<b>Промт:</b>\n{html.escape(photo_prompt(key))}\n\n'
             '<i>Английская версия промта — в файле MODEL_PHOTO_PROMPTS.md.</i>')
-    rows = [[('📤 Загрузить', f'ad:hu:{key}')] + ([('🗑 Удалить', f'ad:hd:{key}')] if v else []),
+    rows = [[('📤 Загрузить', f'ad:hu:{key}')] + ([('🗑 Удалить загруженное', f'ad:hd:{key}')] if v and not v.startswith('b') else []),
             [('⬅️ Все фото', 'ad:hero')]]
     return text, kb(rows)
 

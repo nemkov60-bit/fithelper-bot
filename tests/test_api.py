@@ -415,7 +415,30 @@ class BodyChatHeroTests(unittest.TestCase):
         self.assertIsNone(r['chest']['total_delta'])
         self.assertIn('waist', self.client.get('/api/progress', headers=h).json()['measurements'])
 
+    def test_bundled_photos(self):
+        # Встроенные фото из assets/photos отдаются, пока админ не загрузил свои.
+        h = self.h(9404, 'Лена', 'f')
+        photos = self.client.get('/api/meta').json()['photos']
+        self.assertTrue({'home_u', 'home_m', 'home_f'} <= set(photos))
+        url = self.client.get('/api/today', headers=h).json()['hero_url']
+        self.assertTrue(url.startswith('/api/photos/home_f.jpg?v=b'))
+        r = self.client.get(url)
+        self.assertEqual(r.headers['content-type'], 'image/jpeg')
+        self.assertTrue(r.content.startswith(b'\xff\xd8'))
+        fb.save_app_photo('home', 'f', b'\xff\xd8own', 'image/jpeg')
+        self.assertEqual(self.client.get('/api/hero/f.jpg').content, b'\xff\xd8own')
+        fb.delete_app_photo('home', 'f')
+        self.assertNotEqual(self.client.get('/api/hero/f.jpg').content, b'\xff\xd8own')
+
     def test_hero_photo(self):
+        saved = fb.BUNDLED_PHOTOS
+        fb.BUNDLED_PHOTOS = Path(tempfile.mkdtemp())
+        try:
+            self._hero_photo()
+        finally:
+            fb.BUNDLED_PHOTOS = saved
+
+    def _hero_photo(self):
         h = self.h(9402, 'Оля', 'f')
         self.assertIsNone(self.client.get('/api/today', headers=h).json()['hero_url'])
         fb.save_app_photo('home', 'f', b'\xff\xd8jpegdata', 'image/jpeg')
